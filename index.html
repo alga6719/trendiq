@@ -219,6 +219,42 @@ button,input,select,textarea{font-family:inherit}
 .modal-status.ok{background:var(--gdim);color:var(--green)}
 .modal-status.err{background:var(--rdim);color:var(--red)}
 .modal-status.spin{background:var(--pdim);color:var(--purple)}
+/* ─── MOBILE RESPONSIVE (≤ 768px) ──────────────────────────────────────────*/
+@media(max-width:768px){
+  .hnav{padding:0 16px;height:56px}.hnav-links,.hnav-right .btn-ghost{display:none}
+  .hero{padding:60px 20px 40px;min-height:auto}.hero-h1{letter-spacing:-1.5px}
+  .hero-stats{flex-direction:column}.hero-stat{padding:14px 24px;border-right:none;border-bottom:1px solid var(--border)}
+  .hero-stat:last-child{border-bottom:none}
+  .section{padding:48px 20px}
+  .feat-grid{grid-template-columns:1fr}
+  .why-grid{grid-template-columns:1fr}
+  .price-grid{grid-template-columns:1fr 1fr}
+  .cta-block{padding:36px 20px;margin:0 16px}
+  .footer{flex-direction:column;gap:10px;text-align:center}
+  /* Dashboard shell */
+  .db-sidebar{display:none}
+  .db-bar{padding:0 12px;gap:7px;overflow-x:auto}
+  .db-bar .db-btn span{display:none}
+  /* Dashboard content grids */
+  .mc-grid{grid-template-columns:1fr 1fr}
+  .g2,.g2w,.why-grid{grid-template-columns:1fr}
+  .g3{grid-template-columns:1fr}
+  /* Auth */
+  .auth-shell{grid-template-columns:1fr}.auth-left{display:none}
+  /* Side toggle + modal */
+  .modal-box{width:calc(100vw - 32px)}
+  /* Momentum top cards */
+  #momTopCards{grid-template-columns:1fr}
+  /* Tables: allow horizontal scroll */
+  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Sniper tab price-grid */
+  .price-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .hero-ctas{flex-direction:column;align-items:center}
+  .price-grid{grid-template-columns:1fr}
+  .mc-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -605,7 +641,7 @@ button,input,select,textarea{font-family:inherit}
 var CG_KEY  = "CG-4mhu23ZJbY2MH2xuXwDF2FPa";
 var CG_IDS  = "bitcoin,ethereum,solana,avalanche-2,binancecoin,arbitrum,optimism,dogwifcoin,jupiter";
 var CG_MAP  = {"bitcoin":"BTC/USD","ethereum":"ETH/USD","solana":"SOL/USD","avalanche-2":"AVAX/USD","binancecoin":"BNB/USD","arbitrum":"ARB/USD","optimism":"OP/USD","dogwifcoin":"WIF/USD","jupiter":"JUP/USD"};
-var CLA_KEY = "YOUR_ANTHROPIC_API_KEY";
+// AI key is server-side only (api/chat.js) — never exposed to the browser
 
 // ─── KRAKEN CONFIG ────────────────────────────────────────────────────────────
 var KR_KEY    = "l0bkCGWpWkB8/FELS808KgLS6u/ZR2gYPDOLlDYfiobhSLtU9buS8cpZ";
@@ -798,11 +834,13 @@ var AI_FALLBACK = [
 var liveData = {};
 var momData  = [];
 var lastPricesFetch = 0;
+var chatHistory = [];  // [{role:"user"|"assistant", content:"..."}] — kept client-side for context
 var momFilter = "all";
 var aiIdx = 0;
 var charts = {};
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
+function escHtml(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function fP(p) {
   if (p >= 1000) return p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
   if (p >= 1)    return p.toFixed(3);
@@ -1083,39 +1121,82 @@ function renderHistory() {
   el.innerHTML=html;
 }
 
-// ─── ASK AI ──────────────────────────────────────────────────────────────────
+// ─── ASK AI (streams from /api/chat → Claude, with conversation history) ─────
+var AI_BUBBLE = "background:var(--bg3);border-radius:10px 10px 10px 2px;padding:12px 14px;max-width:82%;font-size:13px;line-height:1.65";
+var AI_LABEL  = "<div style=\"font-size:10px;color:var(--purple);font-weight:600;margin-bottom:5px\">TrendIQ AI</div>";
+
 function sendAI() {
-  var inp=document.getElementById("aiInput"); var chat=document.getElementById("aiChat");
-  var q=inp.value.trim(); if(!q) return;
-  chat.innerHTML+="<div style=\"background:var(--pdim);border-radius:10px 10px 2px 10px;padding:12px 14px;max-width:80%;margin-left:auto;font-size:13px\">"+q+"</div>";
-  inp.value="";
-  var tid="t"+Date.now();
-  chat.innerHTML+="<div id=\""+tid+"\" style=\"background:var(--bg3);border-radius:10px 10px 10px 2px;padding:12px 14px;max-width:80%;font-size:13px;line-height:1.6\"><div style=\"font-size:10px;color:var(--purple);font-weight:600;margin-bottom:5px\">TrendIQ AI</div><span style=\"color:var(--text3)\">Analyzing…</span></div>";
-  chat.scrollTop=chat.scrollHeight;
-  var ctx="Live prices: ";
-  var keys=["BTC/USD","ETH/USD","SOL/USD"];
-  for(var i=0;i<keys.length;i++){var d=liveData[keys[i]];if(d) ctx+=keys[i]+" $"+fP(d.price)+" ("+fPct(d.chg24)+") ";}
-  if(momData.length) ctx+="Top momentum: "+momData[0].sym+" score "+momData[0].score+"/100.";
-  fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":CLA_KEY,"anthropic-version":"2023-06-01"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:"You are TrendIQ AI, a crypto trading assistant. "+ctx+" User portfolio: 1.01 BTC, 10 ETH, 50 SOL. Sharpe 2.14. Keep responses under 120 words.",messages:[{role:"user",content:q}]})
+  var inp  = document.getElementById("aiInput");
+  var chat = document.getElementById("aiChat");
+  var q    = inp.value.trim();
+  if (!q) return;
+
+  // Render user bubble
+  chat.innerHTML += "<div style=\"background:var(--pdim);border-radius:10px 10px 2px 10px;padding:12px 14px;max-width:82%;margin-left:auto;font-size:13px\">" + escHtml(q) + "</div>";
+  inp.value = "";
+
+  // Render AI typing bubble
+  var tid = "t" + Date.now();
+  chat.innerHTML += "<div id=\"" + tid + "\" style=\"" + AI_BUBBLE + "\">" + AI_LABEL + "<span id=\"" + tid + "txt\" style=\"color:var(--text3)\">Analyzing…</span></div>";
+  chat.scrollTop = chat.scrollHeight;
+
+  // Append user turn to history
+  chatHistory.push({ role: "user", content: q });
+
+  // Build live-data context to include in system prompt
+  var ctx = {};
+  var prices = "";
+  ["BTC/USD","ETH/USD","SOL/USD"].forEach(function(sym) {
+    var d = liveData[sym];
+    if (d) prices += sym + " $" + fP(d.price) + " (" + fPct(d.chg24) + ")  ";
+  });
+  if (prices)           ctx.prices      = prices.trim();
+  if (momData.length)   ctx.topMomentum = momData[0].sym + " score " + momData[0].score + "/100";
+  if (fngCache !== null) ctx.fearGreed  = fngCache + "/100 (" + (fngCache <= 25 ? "Extreme Fear" : fngCache <= 45 ? "Fear" : fngCache <= 55 ? "Neutral" : fngCache <= 75 ? "Greed" : "Extreme Greed") + ")";
+  if (ML_SIGS.length)   ctx.signals     = ML_SIGS.slice(0,3).map(function(s){ return s.p + " " + s.s + " " + s.cf + "%"; }).join(", ");
+  if (krakenBalance && krakenBalance.length) ctx.balance = krakenBalance.map(function(b){ return b.asset + " " + b.bal; }).join(", ");
+
+  var txtEl = document.getElementById(tid + "txt");
+  var full  = "";
+
+  fetch("/api/chat", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ messages: chatHistory.slice(-12), context: ctx })
   })
-  .then(function(r){return r.json();})
-  .then(function(data){
-    var el=document.getElementById(tid);
-    var text=(data.content&&data.content[0])?data.content[0].text:AI_FALLBACK[aiIdx%AI_FALLBACK.length];
-    aiIdx++;
-    if(el) el.innerHTML="<div style=\"font-size:10px;color:var(--purple);font-weight:600;margin-bottom:5px\">TrendIQ AI</div>"+text;
-    chat.scrollTop=chat.scrollHeight;
+  .then(function(r) {
+    if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || ("HTTP " + r.status)); });
+
+    // Stream text deltas into the bubble
+    var reader  = r.body.getReader();
+    var decoder = new TextDecoder();
+
+    function pump() {
+      return reader.read().then(function(result) {
+        if (result.done) {
+          chatHistory.push({ role: "assistant", content: full });
+          chat.scrollTop = chat.scrollHeight;
+          return;
+        }
+        full += decoder.decode(result.value, { stream: true });
+        if (txtEl) { txtEl.style.color = ""; txtEl.textContent = full; }
+        chat.scrollTop = chat.scrollHeight;
+        return pump();
+      });
+    }
+    return pump();
   })
-  .catch(function(){
-    var el=document.getElementById(tid); var r=AI_FALLBACK[aiIdx%AI_FALLBACK.length]; aiIdx++;
-    if(el) el.innerHTML="<div style=\"font-size:10px;color:var(--purple);font-weight:600;margin-bottom:5px\">TrendIQ AI</div>"+r;
-    chat.scrollTop=chat.scrollHeight;
+  .catch(function(e) {
+    // Graceful fallback: show error in bubble (not a raw alert)
+    var fallback = AI_FALLBACK[aiIdx % AI_FALLBACK.length]; aiIdx++;
+    var msg = e.message && e.message.indexOf("not configured") > -1
+      ? "AI is not configured yet. Add ANTHROPIC_API_KEY in Vercel → Settings → Environment Variables."
+      : fallback;
+    if (txtEl) { txtEl.style.color = "var(--text2)"; txtEl.textContent = msg; }
+    chat.scrollTop = chat.scrollHeight;
   });
 }
-function setAIQ(q){document.getElementById("aiInput").value=q;}
+function setAIQ(q){ document.getElementById("aiInput").value = q; }
 
 // ─── FEAR & GREED (Alternative.me — free, no key needed) ─────────────────────
 var fngCache = null, fngTs = 0;
