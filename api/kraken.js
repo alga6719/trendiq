@@ -16,7 +16,9 @@ function krakenSign(path, nonce, postData) {
 
 function krakenPost(path, params) {
   return new Promise((resolve, reject) => {
-    const nonce    = Date.now().toString();
+    // Multiply by 1000 for microsecond precision — prevents EAPI:Invalid nonce
+    // when sequential calls land within the same millisecond on Vercel.
+    const nonce    = (Date.now() * 1000).toString();
     params.nonce   = nonce;
     const postData = new URLSearchParams(params).toString();
     const sign     = krakenSign(path, nonce, postData);
