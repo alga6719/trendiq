@@ -345,10 +345,10 @@ button,input,select,textarea{font-family:inherit}
     <div class="db-bar">
       <div class="db-logo" onclick="goTo('home')"><div class="db-logo-box"><svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M2 11.5l2.5-3.5 2.5 1.5L10.5 4 13 2" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>Quantum Trading Bot</div>
       <span class="live-badge">LIVE</span>
-      <button class="db-btn b-live">Live Trade</button>
-      <button class="db-btn">Sim Trade</button>
-      <button class="db-btn">Refresh</button>
-      <button class="db-btn b-stop">Stop Bot</button>
+      <button class="db-btn b-live" id="btnLive"    onclick="setMode('live')">Live Trade</button>
+      <button class="db-btn"        id="btnSim"     onclick="setMode('sim')">Sim Trade</button>
+      <button class="db-btn"        id="btnRefresh" onclick="refreshAll()">Refresh</button>
+      <button class="db-btn b-stop" id="btnStop"    onclick="setMode('idle')">Stop Bot</button>
       <div class="db-user"><div class="db-avatar">AG</div>alexgaray5<span class="free-badge">FREE</span></div>
     </div>
     <div class="db-body">
@@ -684,37 +684,46 @@ var krakenBalance  = {};
 var krakenOrders   = [];
 var krakenTrades   = [];
 
-async function fetchKraken() {
-  try {
-    // 1. Account balance
-    var balRes = await krakenRequest("/0/private/Balance");
-    if (balRes.result) {
-      krakenBalance = balRes.result;
-      renderKrakenBalance();
-    }
+// Route all Kraken calls through /api/kraken (server-side HMAC signing).
+// Direct browser calls to api.kraken.com are always CORS-blocked.
+async function kProxy(endpoint, params) {
+  var r = await fetch("/api/kraken", {
+    method:  "POST",
+    headers: {"Content-Type": "application/json"},
+    body:    JSON.stringify({endpoint: endpoint, params: params || {}})
+  });
+  var data = await r.json();
+  if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+  if (data.error && data.error.length) throw new Error(data.error.join(", "));
+  return data;
+}
 
-    // 2. Open orders
-    var ordRes = await krakenRequest("/0/private/OpenOrders");
+async function fetchKraken() {
+  var statusEl = document.getElementById("kr-status");
+  if (statusEl) { statusEl.textContent = "Syncing…"; statusEl.className = "badge ba"; }
+
+  try {
+    var balRes = await kProxy("/0/private/Balance");
+    if (balRes.result) { krakenBalance = balRes.result; renderKrakenBalance(); }
+
+    var ordRes = await kProxy("/0/private/OpenOrders");
     if (ordRes.result && ordRes.result.open) {
       krakenOrders = Object.values(ordRes.result.open);
       renderKrakenOrders();
     }
 
-    // 3. Trade history (last 50)
-    var trdRes = await krakenRequest("/0/private/TradesHistory", {trades: true});
+    var trdRes = await kProxy("/0/private/TradesHistory", {trades: true});
     if (trdRes.result && trdRes.result.trades) {
-      krakenTrades = Object.values(trdRes.result.trades).sort(function(a,b){ return b.time - a.time; }).slice(0,20);
+      krakenTrades = Object.values(trdRes.result.trades)
+        .sort(function(a,b){ return b.time - a.time; }).slice(0, 20);
       renderKrakenTrades();
     }
 
-    // Update settings badge
-    var el = document.getElementById("kr-status");
-    if (el) { el.textContent = "Connected"; el.className = "badge bg"; }
+    if (statusEl) { statusEl.textContent = "Connected"; statusEl.className = "badge bg"; }
 
   } catch(e) {
     console.warn("Kraken error:", e);
-    var el = document.getElementById("kr-status");
-    if (el) { el.textContent = "Error"; el.className = "badge br"; }
+    if (statusEl) { statusEl.textContent = "Error: " + e.message.slice(0,40); statusEl.className = "badge br"; }
   }
 }
 
@@ -834,7 +843,8 @@ var AI_FALLBACK = [
 var liveData = {};
 var momData  = [];
 var lastPricesFetch = 0;
-var chatHistory = [];  // [{role:"user"|"assistant", content:"..."}] — kept client-side for context
+var chatHistory = [];
+var botMode = "live";  // "live" | "sim" | "idle"
 var momFilter = "all";
 var aiIdx = 0;
 var charts = {};
@@ -851,6 +861,32 @@ function fVol(v) {
   if (v >= 1e9) return "$" + (v/1e9).toFixed(1) + "B";
   if (v >= 1e6) return "$" + (v/1e6).toFixed(0) + "M";
   return "$" + v.toLocaleString();
+}
+
+// ─── TOP BAR CONTROLS ────────────────────────────────────────────────────────
+function setMode(mode) {
+  botMode = mode;
+  var btnLive   = document.getElementById("btnLive");
+  var btnSim    = document.getElementById("btnSim");
+  var btnStop   = document.getElementById("btnStop");
+  var badge     = document.querySelector(".live-badge");
+
+  if (btnLive)  btnLive.className  = "db-btn" + (mode === "live" ? " b-live" : "");
+  if (btnSim)   btnSim.className   = "db-btn" + (mode === "sim"  ? " b-live" : "");
+  if (btnStop)  btnStop.className  = "db-btn" + (mode !== "idle" ? " b-stop" : "");
+
+  if (badge) {
+    badge.textContent = mode === "live" ? "LIVE" : mode === "sim" ? "SIM" : "IDLE";
+    badge.style.background = mode === "live" ? "" : mode === "sim" ? "rgba(59,130,246,0.25)" : "rgba(107,114,128,0.25)";
+    badge.style.color      = mode === "live" ? "" : mode === "sim" ? "#60a5fa" : "var(--text3)";
+  }
+}
+
+function refreshAll() {
+  var btn = document.getElementById("btnRefresh");
+  if (btn) { btn.style.color = "var(--green)"; setTimeout(function(){ btn.style.color = ""; }, 900); }
+  fetchPrices(true);
+  fetchKraken();
 }
 
 // ─── COINGECKO FETCH (via /api/prices CDN proxy, falls back to direct) ───────
