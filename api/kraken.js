@@ -58,14 +58,36 @@ module.exports = async (req, res) => {
   const { endpoint, params } = req.body || {};
   if (!endpoint) return res.status(400).json({ error: "Missing endpoint" });
 
+  if (!KR_KEY || !KR_SECRET) {
+    return res.status(503).json({ error: "Kraken API credentials not configured" });
+  }
+
   const allowed = [
     "/0/private/Balance",
     "/0/private/OpenOrders",
     "/0/private/TradesHistory",
     "/0/private/ClosedOrders",
+    "/0/private/AddOrder",
   ];
   if (!allowed.includes(endpoint)) {
     return res.status(403).json({ error: "Endpoint not allowed" });
+  }
+
+  // Validate AddOrder parameters before sending to Kraken
+  if (endpoint === "/0/private/AddOrder") {
+    const { pair, type, ordertype, volume } = params || {};
+    if (!pair || !type || !ordertype || !volume) {
+      return res.status(400).json({ error: "AddOrder requires: pair, type, ordertype, volume" });
+    }
+    if (!["buy", "sell"].includes(type)) {
+      return res.status(400).json({ error: "type must be 'buy' or 'sell'" });
+    }
+    if (!["market", "limit"].includes(ordertype)) {
+      return res.status(400).json({ error: "ordertype must be 'market' or 'limit'" });
+    }
+    if (isNaN(parseFloat(volume)) || parseFloat(volume) <= 0) {
+      return res.status(400).json({ error: "volume must be a positive number" });
+    }
   }
 
   try {

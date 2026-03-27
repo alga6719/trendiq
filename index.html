@@ -197,6 +197,28 @@ button,input,select,textarea{font-family:inherit}
 .faq-q{font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
 .faq-a{font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px;display:none}
 .faq-item.open .faq-a{display:block}
+/* ─── SNIPE MODAL ───────────────────────────────────────────────────────────*/
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rlg);width:390px;max-width:95vw;padding:26px;position:relative;animation:fi .15s ease}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.modal-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px}
+.modal-close{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:var(--r);line-height:1}
+.modal-close:hover{color:var(--text);background:var(--bg3)}
+.modal-pair{font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-bottom:3px}
+.modal-cprice{font-size:12px;color:var(--text3);margin-bottom:18px;font-family:'JetBrains Mono',monospace}
+.side-toggle{display:flex;background:var(--bg3);border-radius:var(--r);padding:3px;gap:3px;margin-bottom:18px}
+.side-btn{flex:1;padding:8px;font-size:13px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:transparent;color:var(--text3);transition:all .15s}
+.side-btn.buy.active{background:var(--gdim);color:var(--green)}
+.side-btn.sell.active{background:var(--rdim);color:var(--red)}
+.modal-lbl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px}
+.modal-vol-hint{font-size:12px;color:var(--purple);font-family:'JetBrains Mono',monospace;margin:-10px 0 16px}
+.modal-otype{font-size:13px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:9px 13px;margin-bottom:18px}
+.modal-status{margin-top:12px;font-size:12px;padding:10px 12px;border-radius:var(--r);display:none;line-height:1.5}
+.modal-status.show{display:block}
+.modal-status.ok{background:var(--gdim);color:var(--green)}
+.modal-status.err{background:var(--rdim);color:var(--red)}
+.modal-status.spin{background:var(--pdim);color:var(--purple)}
 </style>
 </head>
 <body>
@@ -775,6 +797,7 @@ var AI_FALLBACK = [
 // ─── STATE ────────────────────────────────────────────────────────────────────
 var liveData = {};
 var momData  = [];
+var lastPricesFetch = 0;
 var momFilter = "all";
 var aiIdx = 0;
 var charts = {};
@@ -792,21 +815,33 @@ function fVol(v) {
   return "$" + v.toLocaleString();
 }
 
-// ─── COINGECKO FETCH ─────────────────────────────────────────────────────────
-function fetchPrices() {
-  var url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + CG_IDS + "&order=market_cap_desc&per_page=20&sparkline=false&price_change_percentage=24h";
-  fetch(url, {headers:{"x-cg-demo-api-key": CG_KEY}})
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      for (var i = 0; i < data.length; i++) {
-        var c = data[i];
-        var sym = CG_MAP[c.id];
-        if (!sym) continue;
-        liveData[sym] = {price: c.current_price, chg24: c.price_change_percentage_24h || 0, vol: c.total_volume || 0};
-      }
-      onPricesLoaded();
-    })
-    .catch(function(e) { console.warn("CoinGecko fetch error:", e); });
+// ─── COINGECKO FETCH (via /api/prices CDN proxy, falls back to direct) ───────
+function fetchPrices(force) {
+  if (!force && Date.now() - lastPricesFetch < 30000) return;  // dedupe rapid tab switches
+  lastPricesFetch = Date.now();
+
+  function applyData(data) {
+    if (!Array.isArray(data)) throw new Error("unexpected response shape");
+    for (var i = 0; i < data.length; i++) {
+      var c = data[i], sym = CG_MAP[c.id]; if (!sym) continue;
+      liveData[sym] = {price: c.current_price, chg24: c.price_change_percentage_24h || 0, vol: c.total_volume || 0};
+    }
+    onPricesLoaded();
+  }
+
+  // Try the server-side caching proxy first (Vercel CDN: s-maxage=60, stale-while-revalidate=120)
+  fetch("/api/prices")
+    .then(function(r) { if (!r.ok) throw new Error("proxy " + r.status); return r.json(); })
+    .then(applyData)
+    .catch(function() {
+      // Fallback: call CoinGecko directly (uses client-side API key)
+      var url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + CG_IDS +
+                "&order=market_cap_desc&per_page=20&sparkline=false&price_change_percentage=24h";
+      fetch(url, {headers:{"x-cg-demo-api-key": CG_KEY}})
+        .then(function(r) { return r.json(); })
+        .then(applyData)
+        .catch(function(e) { console.warn("Price fetch failed:", e); });
+    });
 }
 
 function onPricesLoaded() {
@@ -915,7 +950,7 @@ function renderMomTable() {
     html += "<td style=\"font-size:12px;color:var(--text2)\">"+fVol(d.vol)+"</td>";
     html += "<td><div style=\"display:flex;align-items:center;gap:6px\"><div style=\"width:60px;height:5px;background:var(--bg4);border-radius:2px;overflow:hidden\"><div style=\"height:100%;width:"+d.score+"%;background:"+sColor(d.score)+";border-radius:2px\"></div></div><span style=\"font-family:'JetBrains Mono',monospace;font-weight:700;color:"+sColor(d.score)+"\">"+d.score+"</span></div></td>";
     html += "<td>"+outlookBadge(d.outlook)+"</td>";
-    html += "<td><button class=\"db-btn\" style=\"font-size:11px;padding:4px 10px;color:var(--green);border-color:rgba(34,197,94,0.3)\" onclick=\"alert('Sniper queued for "+d.sym+"')\">Snipe</button></td></tr>";
+    html += "<td><button class=\"db-btn\" style=\"font-size:11px;padding:4px 10px;color:var(--green);border-color:rgba(34,197,94,0.3)\" onclick=\"openSnipe('"+d.sym+"')\">Snipe</button></td></tr>";
   }
   el.innerHTML = html;
 }
@@ -931,7 +966,7 @@ function renderMomAI() {
     var d = top[i];
     html += "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:var(--r);background:var(--bg3);border:1px solid var(--border)\">";
     html += "<div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;font-weight:700\">"+d.sym+"</span><span style=\"font-size:11px;color:"+sColor(d.score)+";font-weight:600\">"+d.score+"</span></div>";
-    html += "<button class=\"db-btn b-live\" style=\"font-size:11px;padding:3px 10px\" onclick=\"alert('Sniper queued for "+d.sym+"')\">Quick Snipe</button></div>";
+    html += "<button class=\"db-btn b-live\" style=\"font-size:11px;padding:3px 10px\" onclick=\"openSnipe('"+d.sym+"')\">Quick Snipe</button></div>";
   }
   acts.innerHTML = html;
 }
@@ -1264,10 +1299,107 @@ renderHistory();
 setTimeout(initPerfChart,120);
 setTimeout(initSentimentGauge,130);
 setTimeout(function(){
-  fetchPrices();
-  setInterval(fetchPrices,60000);
+  fetchPrices(true);
+  setInterval(function(){ fetchPrices(true); }, 60000);
   setInterval(fetchFearGreed, 600000);  // refresh fear/greed every 10 min
 },300);
+
+// ─── SNIPE MODAL ─────────────────────────────────────────────────────────────
+var KRAKEN_PAIRS = {
+  "BTC/USD":"XBT/USD","ETH/USD":"ETH/USD","SOL/USD":"SOL/USD",
+  "AVAX/USD":"AVAX/USD","BNB/USD":"BNB/USD","ARB/USD":"ARB/USD",
+  "OP/USD":"OP/USD","WIF/USD":"WIF/USD","JUP/USD":"JUP/USD"
+};
+var _snipeSide = "buy";
+var _snipeSym  = "";
+
+function openSnipe(sym) {
+  _snipeSym  = sym;
+  _snipeSide = "buy";
+  document.getElementById("snipePair").textContent  = sym;
+  var d = liveData[sym];
+  document.getElementById("snipeCprice").textContent = d ? "Current price: $" + fP(d.price) : "Price loading…";
+  document.getElementById("sideBuy").classList.add("active");
+  document.getElementById("sideSell").classList.remove("active");
+  document.getElementById("snipeUsd").value = "100";
+  var st = document.getElementById("snipeStatus"); st.className = "modal-status"; st.textContent = "";
+  document.getElementById("snipeBtn").disabled = false;
+  updateSnipeVolume();
+  document.getElementById("snipeOverlay").classList.add("open");
+}
+function closeSnipe() { document.getElementById("snipeOverlay").classList.remove("open"); }
+function setSide(side) {
+  _snipeSide = side;
+  document.getElementById("sideBuy").classList.toggle("active",  side === "buy");
+  document.getElementById("sideSell").classList.toggle("active", side === "sell");
+}
+function updateSnipeVolume() {
+  var usd = parseFloat(document.getElementById("snipeUsd").value) || 0;
+  var d   = liveData[_snipeSym];
+  var el  = document.getElementById("snipeVol");
+  if (!d || !usd) { el.textContent = "≈ — units"; return; }
+  el.textContent = "≈ " + (usd / d.price).toFixed(6) + " " + _snipeSym.replace("/USD","");
+}
+function confirmSnipe() {
+  var usd = parseFloat(document.getElementById("snipeUsd").value);
+  var d   = liveData[_snipeSym];
+  var st  = document.getElementById("snipeStatus");
+  var btn = document.getElementById("snipeBtn");
+  if (!usd || usd <= 0) { st.className = "modal-status show err"; st.textContent = "Enter a valid USD amount."; return; }
+  if (!d)               { st.className = "modal-status show err"; st.textContent = "Price not loaded yet — try again."; return; }
+  var krakenPair = KRAKEN_PAIRS[_snipeSym] || _snipeSym;
+  var volume     = (usd / d.price).toFixed(8);
+  st.className = "modal-status show spin"; st.textContent = "Placing " + _snipeSide.toUpperCase() + " order…";
+  btn.disabled = true;
+  fetch("/api/kraken", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({endpoint:"/0/private/AddOrder", params:{pair:krakenPair, type:_snipeSide, ordertype:"market", volume:volume}})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    btn.disabled = false;
+    if (data.error && data.error.length) {
+      st.className = "modal-status show err";
+      st.textContent = "Kraken error: " + data.error.join(", ");
+    } else {
+      var txid = (data.result && data.result.txid) ? data.result.txid[0] : "–";
+      var desc = (data.result && data.result.descr) ? data.result.descr.order : "";
+      st.className = "modal-status show ok";
+      st.textContent = "✓ Order placed! " + (desc ? desc + " · " : "") + "TX: " + txid;
+    }
+  })
+  .catch(function(e){ btn.disabled = false; st.className = "modal-status show err"; st.textContent = "Request failed: " + e.message; });
+}
 </script>
+
+<!-- ─── SNIPE ORDER MODAL ────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="snipeOverlay" onclick="if(event.target===this)closeSnipe()">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div class="modal-title">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="#8b5cf6" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="#8b5cf6" stroke-width="1.3"/><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" stroke="#8b5cf6" stroke-width="1.3" stroke-linecap="round"/></svg>
+        Snipe Order
+      </div>
+      <button class="modal-close" onclick="closeSnipe()">✕</button>
+    </div>
+    <div class="modal-pair" id="snipePair">BTC/USD</div>
+    <div class="modal-cprice" id="snipeCprice">Loading…</div>
+    <div class="side-toggle">
+      <button class="side-btn buy active" id="sideBuy"  onclick="setSide('buy')">BUY</button>
+      <button class="side-btn sell"       id="sideSell" onclick="setSide('sell')">SELL</button>
+    </div>
+    <div class="modal-lbl">USD Amount</div>
+    <input class="fld" type="number" id="snipeUsd" value="100" min="1" step="10" oninput="updateSnipeVolume()" style="margin-bottom:8px">
+    <div class="modal-vol-hint" id="snipeVol">≈ — units</div>
+    <div class="modal-lbl">Order Type</div>
+    <div class="modal-otype">Market — executes at best available price</div>
+    <button class="btn-purple" id="snipeBtn" style="width:100%;justify-content:center;padding:11px;font-size:14px" onclick="confirmSnipe()">
+      Confirm Snipe
+    </button>
+    <div class="modal-status" id="snipeStatus"></div>
+  </div>
+</div>
+
 </body>
 </html>
