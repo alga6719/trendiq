@@ -736,36 +736,40 @@ function krFmt(n) {
 function renderKrakenBalance() {
   var el = document.getElementById("kraken-balance"); if (!el) return;
   var keys = Object.keys(krakenBalance).filter(function(k){ return parseFloat(krakenBalance[k]) > 0; });
-  if (!keys.length) { el.innerHTML = "<div style='color:var(--text3);font-size:13px'>No balances found</div>"; return; }
 
   // Map Kraken asset codes to readable names
   var names = {XBT:"Bitcoin",XXBT:"Bitcoin",ETH:"Ethereum",XETH:"Ethereum",SOL:"Solana",USDT:"Tether",USDC:"USD Coin",USD:"US Dollar",ZUSD:"US Dollar",EUR:"Euro",ZEUR:"Euro"};
   var html = "";
   var total = 0;
 
-  keys.forEach(function(k) {
-    var amt  = parseFloat(krakenBalance[k]);
-    var name = names[k] || k;
-    // Estimate USD value using live prices
-    var usdVal = 0;
-    if (k==="ZUSD"||k==="USD"||k==="USDT"||k==="USDC") usdVal = amt;
-    else if ((k==="XBT"||k==="XXBT") && liveData["BTC/USD"]) usdVal = amt * liveData["BTC/USD"].price;
-    else if ((k==="ETH"||k==="XETH") && liveData["ETH/USD"]) usdVal = amt * liveData["ETH/USD"].price;
-    else if (k==="SOL" && liveData["SOL/USD"]) usdVal = amt * liveData["SOL/USD"].price;
-    total += usdVal;
+  if (!keys.length) {
+    html = "<div style='color:var(--text3);font-size:13px'>No balances found</div>";
+  } else {
+    keys.forEach(function(k) {
+      var amt  = parseFloat(krakenBalance[k]);
+      var name = names[k] || k;
+      // Estimate USD value using live prices
+      var usdVal = 0;
+      if (k==="ZUSD"||k==="USD"||k==="USDT"||k==="USDC") usdVal = amt;
+      else if ((k==="XBT"||k==="XXBT") && liveData["BTC/USD"]) usdVal = amt * liveData["BTC/USD"].price;
+      else if ((k==="ETH"||k==="XETH") && liveData["ETH/USD"]) usdVal = amt * liveData["ETH/USD"].price;
+      else if (k==="SOL" && liveData["SOL/USD"]) usdVal = amt * liveData["SOL/USD"].price;
+      total += usdVal;
 
-    html += "<div class='h-row'>";
-    html += "<div><div style='font-size:13px;font-weight:600'>"+name+"</div><div style='font-size:11px;color:var(--text3)'>"+k+"</div></div>";
-    html += "<div style='text-align:right'><div style='font-size:13px;font-weight:600;font-family:\"JetBrains Mono\",monospace'>"+krFmt(amt)+"</div>";
-    if (usdVal > 0) html += "<div style='font-size:11px;color:var(--text3)'>≈ $"+usdVal.toLocaleString("en-US",{maximumFractionDigits:2})+"</div>";
-    html += "</div></div>";
-  });
+      html += "<div class='h-row'>";
+      html += "<div><div style='font-size:13px;font-weight:600'>"+name+"</div><div style='font-size:11px;color:var(--text3)'>"+k+"</div></div>";
+      html += "<div style='text-align:right'><div style='font-size:13px;font-weight:600;font-family:\"JetBrains Mono\",monospace'>"+krFmt(amt)+"</div>";
+      if (usdVal > 0) html += "<div style='font-size:11px;color:var(--text3)'>≈ $"+usdVal.toLocaleString("en-US",{maximumFractionDigits:2})+"</div>";
+      html += "</div></div>";
+    });
+  }
 
   el.innerHTML = html;
 
-  // Update total
-  var tot = document.getElementById("kraken-total");
-  if (tot) tot.textContent = "$" + total.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  // Update ALL kraken-total elements (there are two: dashboard card + portfolio sidebar)
+  var totalStr = "$" + total.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  var tots = document.querySelectorAll("[id='kraken-total']");
+  tots.forEach(function(tot){ tot.textContent = totalStr; });
 
   // Update dashboard card
   var dc = document.getElementById("d-btc-price");
@@ -1084,7 +1088,8 @@ function showDash(tab,el) {
   if(el) el.classList.add("active");
   setTimeout(function(){
     if(tab==="dashboard")  { initPerfChart(); initSentimentGauge(); }
-    if(tab==="portfolio")  { initPortfolioChart(); }
+    if(tab==="portfolio")  { initPortfolioChart(); fetchKraken(); }
+    if(tab==="history")    { fetchKraken(); }
     if(tab==="strategies") { initStratChart(); }
     if(tab==="sniper")     { initBotChart(); }
     if(tab==="momentum")   {
@@ -1420,6 +1425,7 @@ setTimeout(function(){
   setInterval(function(){ fetchPrices(true); }, 60000);
   setInterval(fetchFearGreed, 600000);  // refresh fear/greed every 10 min
 },300);
+setTimeout(fetchKraken, 800);  // load Kraken balance on page open (after prices start)
 
 // ─── SNIPE MODAL ─────────────────────────────────────────────────────────────
 var KRAKEN_PAIRS = {
