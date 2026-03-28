@@ -758,37 +758,62 @@ function renderKrakenBalance() {
   var el = document.getElementById("kraken-balance"); if (!el) return;
   var keys = Object.keys(krakenBalance).filter(function(k){ return parseFloat(krakenBalance[k]) > 0; });
 
-  // Map Kraken asset codes to readable names
-  var names = {XBT:"Bitcoin",XXBT:"Bitcoin",ETH:"Ethereum",XETH:"Ethereum",SOL:"Solana",USDT:"Tether",USDC:"USD Coin",USD:"US Dollar",ZUSD:"US Dollar",EUR:"Euro",ZEUR:"Euro"};
+  // Kraken internal code → human name
+  var names = {
+    XBT:"Bitcoin",XXBT:"Bitcoin",ETH:"Ethereum",XETH:"Ethereum",
+    SOL:"Solana",XSOL:"Solana",DOT:"Polkadot",XDOT:"Polkadot",
+    XRP:"XRP",XXRP:"XRP",ADA:"Cardano",XADA:"Cardano",
+    AVAX:"Avalanche",MATIC:"Polygon",LINK:"Chainlink",XLINK:"Chainlink",
+    UNI:"Uniswap",ATOM:"Cosmos",LTC:"Litecoin",XLTC:"Litecoin",
+    BCH:"Bitcoin Cash",XBCH:"Bitcoin Cash",XLM:"Stellar",XXLM:"Stellar",
+    USDT:"Tether",USDC:"USD Coin",DAI:"DAI",
+    USD:"US Dollar",ZUSD:"US Dollar",EUR:"Euro",ZEUR:"Euro"
+  };
+  // Kraken code → liveData key (from CoinGecko prices)
+  var priceMap = {
+    XBT:"BTC/USD",XXBT:"BTC/USD",
+    ETH:"ETH/USD",XETH:"ETH/USD",
+    SOL:"SOL/USD",XSOL:"SOL/USD",
+    AVAX:"AVAX/USD",
+    BNB:"BNB/USD",
+    ARB:"ARB/USD",
+    OP:"OP/USD"
+  };
+
   var html = "";
   var total = 0;
+  var hasPrices = false;
 
   if (!keys.length) {
-    html = "<div style='color:var(--text3);font-size:13px'>No balances found</div>";
+    html = "<div style='color:var(--text3);font-size:13px'>No balances found on this account</div>";
   } else {
     keys.forEach(function(k) {
       var amt  = parseFloat(krakenBalance[k]);
       var name = names[k] || k;
-      // Estimate USD value using live prices
       var usdVal = 0;
-      if (k==="ZUSD"||k==="USD"||k==="USDT"||k==="USDC") usdVal = amt;
-      else if ((k==="XBT"||k==="XXBT") && liveData["BTC/USD"]) usdVal = amt * liveData["BTC/USD"].price;
-      else if ((k==="ETH"||k==="XETH") && liveData["ETH/USD"]) usdVal = amt * liveData["ETH/USD"].price;
-      else if (k==="SOL" && liveData["SOL/USD"]) usdVal = amt * liveData["SOL/USD"].price;
-      total += usdVal;
+      var usdKnown = false;
+
+      if (k==="ZUSD"||k==="USD"||k==="USDT"||k==="USDC"||k==="DAI") {
+        usdVal = amt; usdKnown = true;
+      } else if (priceMap[k] && liveData[priceMap[k]]) {
+        usdVal = amt * liveData[priceMap[k]].price; usdKnown = true;
+      }
+      if (usdKnown) { total += usdVal; hasPrices = true; }
 
       html += "<div class='h-row'>";
       html += "<div><div style='font-size:13px;font-weight:600'>"+name+"</div><div style='font-size:11px;color:var(--text3)'>"+k+"</div></div>";
       html += "<div style='text-align:right'><div style='font-size:13px;font-weight:600;font-family:\"JetBrains Mono\",monospace'>"+krFmt(amt)+"</div>";
-      if (usdVal > 0) html += "<div style='font-size:11px;color:var(--text3)'>≈ $"+usdVal.toLocaleString("en-US",{maximumFractionDigits:2})+"</div>";
+      if (usdKnown) html += "<div style='font-size:11px;color:var(--text3)'>≈ $"+usdVal.toLocaleString("en-US",{maximumFractionDigits:2})+"</div>";
       html += "</div></div>";
     });
   }
 
   el.innerHTML = html;
 
-  // Update ALL kraken-total elements (there are two: dashboard card + portfolio sidebar)
-  var totalStr = "$" + total.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  // Update ALL kraken-total elements (dashboard card + portfolio sidebar)
+  var totalStr = hasPrices
+    ? "$" + total.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})
+    : keys.length ? "Loading prices…" : "$0.00";
   var tots = document.querySelectorAll("[id='kraken-total']");
   tots.forEach(function(tot){ tot.textContent = totalStr; });
 
