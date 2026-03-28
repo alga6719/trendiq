@@ -563,6 +563,21 @@ button,input,select,textarea{font-family:inherit}
             </div>
             <div id="strat-list"><div style="color:var(--text3);font-size:13px;padding:8px 0">No strategies yet — click <strong style="color:var(--text2)">+ New Strategy</strong> to create one.</div></div>
           </div>
+          <!-- Learning Engine panel -->
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="card-h" style="margin-bottom:0">🧠 Adaptive Learning Engine</div>
+                <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(139,92,246,0.15);color:var(--purple)">LIVE</span>
+              </div>
+              <button class="db-btn" onclick="renderLearningPanel()" style="font-size:10px;padding:3px 8px">Refresh</button>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Learns from every bot trade · adapts the momentum score · suggests thresholds</div>
+            <div id="strat-learning">
+              <div style="color:var(--text3);font-size:13px;padding:10px 0">No trade outcomes yet. Run the bot in Sim mode to start collecting data — after a few trades the app will learn which score levels actually work for each pair.</div>
+            </div>
+          </div>
+
           <!-- Kraken trade breakdown (real data) -->
           <div class="g2w">
             <div class="card">
@@ -576,9 +591,19 @@ button,input,select,textarea{font-family:inherit}
         </div>
         <div id="dtab-ml" class="db-tab">
           <div class="card-h" style="margin-bottom:20px">ML Predictions</div>
-          <div class="g2w">
+          <div class="g2w" style="margin-bottom:16px">
             <div class="card"><div class="ai-pill"><span class="ai-dot"></span>ML Engine · Updated 1m ago</div><div id="mlSignals"></div></div>
             <div class="card"><div class="card-h" style="margin-bottom:14px">Confluence Engine</div><div id="mlGauges"></div><div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)"><div style="font-size:12px;color:var(--text3);margin-bottom:4px">Overall Confluence Score</div><div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--purple)" id="ml-confluence-score">— <span style="font-size:14px;color:var(--text3)">/100</span></div></div></div>
+          </div>
+          <!-- Learned signal accuracy -->
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+              <div class="card-h" style="margin-bottom:0">Learned Signal Accuracy</div>
+              <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(34,197,94,0.12);color:var(--green)">ADAPTIVE</span>
+            </div>
+            <div id="ml-accuracy">
+              <div style="color:var(--text3);font-size:13px">Signal accuracy data will appear here after 3+ bot trades. The momentum score is then automatically recalibrated based on what has actually worked.</div>
+            </div>
           </div>
         </div>
         <div id="dtab-momentum" class="db-tab">
@@ -1750,7 +1775,9 @@ function buildMomData() {
   for (var i = 0; i < syms.length; i++) {
     var sym = syms[i]; var d = liveData[sym]; if (!d) continue;
     var volScore = Math.min(5, d.vol / 500000000);
-    var score = Math.round(Math.min(99, Math.max(5, 50 + (d.chg24 * 3.5) + (volScore * 6))));
+    var rawScore = Math.min(99, Math.max(5, 50 + (d.chg24 * 3.5) + (volScore * 6)));
+    var learnedMult = getLearnedMultiplier(sym, rawScore);
+    var score = Math.round(Math.min(99, Math.max(5, rawScore * learnedMult)));
     var outlook = score >= 80 ? "Strong Up" : score >= 65 ? "Likely Up" : score >= 50 ? "Neutral/Up" : score >= 35 ? "Flat" : "Fading";
     result.push({sym:sym, price:d.price, chg:d.chg24, vol:d.vol, score:score, outlook:outlook});
   }
@@ -1879,7 +1906,8 @@ function showDash(tab,el) {
     if(tab==="history")    { fetchKraken(); if(krakenTrades.length){ populatePairFilter(); var ce=document.getElementById("hist-count");if(ce)ce.textContent=krakenTrades.length+" trades"; } }
     if(tab==="settings")   { initSettingsTab(); }
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
-    if(tab==="strategies") { initStratChart(); renderStrategiesList(); }
+    if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
+    if(tab==="ml")         { renderMLAccuracy(); }
     if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
@@ -3243,6 +3271,20 @@ async function autoExecute(strat, side, price, reason, existingPos) {
         body: strat.pair + " @ $" + fP(price) + " · " + reason, icon: "/favicon.ico"
       });
     }
+
+    // ── Record outcome for learning ──
+    var momEntry2 = momData.find(function(m){ return m.sym === existingPos.pair; });
+    recordTradeOutcome({
+      pair:        existingPos.pair,
+      entryScore:  momEntry2 ? momEntry2.score : 0,   // score at time of close (proxy)
+      buyScore:    strat.buyScore || 0,
+      pnlPct:      parseFloat(pnlPct),
+      pnlUsd:      parseFloat(pnlUsd.toFixed(2)),
+      exitReason:  reason.replace(/[🎯🛑📉🖐🔵🟢🔴]/gu,"").trim().split(" ")[0],  // "TP", "SL", "Sell", "Manual"
+      durationMin: Math.round((Date.now() - existingPos.entryTime) / 60000),
+      timestamp:   Date.now(),
+      mode:        existingPos.mode
+    });
   }
 }
 
@@ -3329,6 +3371,197 @@ async function closePosition(key) {
   delete _botPositions[key];
   saveBotPositions();
   renderBotPositions();
+}
+
+// ─── TRADE OUTCOME LEARNING ENGINE ──────────────────────────────────────────
+var _tradeOutcomes = [];   // loaded from localStorage
+
+function loadTradeOutcomes() {
+  try { _tradeOutcomes = JSON.parse(localStorage.getItem("tiq_outcomes") || "[]"); } catch(e) { _tradeOutcomes = []; }
+}
+function saveTradeOutcomes() {
+  try {
+    // Keep last 500 outcomes to avoid localStorage bloat
+    if (_tradeOutcomes.length > 500) _tradeOutcomes = _tradeOutcomes.slice(-500);
+    localStorage.setItem("tiq_outcomes", JSON.stringify(_tradeOutcomes));
+  } catch(e) {}
+}
+function recordTradeOutcome(outcome) {
+  loadTradeOutcomes();
+  _tradeOutcomes.push(outcome);
+  saveTradeOutcomes();
+  // Refresh learning panel if strategies tab is visible
+  if (document.getElementById("strat-learning")) renderLearningPanel();
+  // Refresh ML tab if visible
+  if (document.getElementById("ml-accuracy")) renderMLAccuracy();
+}
+
+// ── Score bucket: 0-49, 50-59, 60-69, 70-79, 80-89, 90-99 ──
+function bucketLabel(score) {
+  if (score >= 90) return "90-99";
+  if (score >= 80) return "80-89";
+  if (score >= 70) return "70-79";
+  if (score >= 60) return "60-69";
+  if (score >= 50) return "50-59";
+  return "< 50";
+}
+function bucketBase(score) {
+  if (score >= 90) return 90;
+  if (score >= 80) return 80;
+  if (score >= 70) return 70;
+  if (score >= 60) return 60;
+  if (score >= 50) return 50;
+  return 0;
+}
+
+// Returns { "BTC/USD": { "70-79": {count,wins,totalPnl,avgPnl,winRate}, … }, … }
+function analyzeOutcomes() {
+  loadTradeOutcomes();
+  var result = {};
+  _tradeOutcomes.forEach(function(o) {
+    if (!o.pair) return;
+    if (!result[o.pair]) result[o.pair] = {};
+    var b = bucketLabel(o.entryScore || o.buyScore || 0);
+    if (!result[o.pair][b]) result[o.pair][b] = { count:0, wins:0, totalPnl:0, avgPnl:0, winRate:0 };
+    var bkt = result[o.pair][b];
+    bkt.count++;
+    if (o.pnlPct > 0) bkt.wins++;
+    bkt.totalPnl += o.pnlPct;
+    bkt.avgPnl    = bkt.totalPnl / bkt.count;
+    bkt.winRate   = bkt.wins / bkt.count;
+  });
+  return result;
+}
+
+// Returns the learned score multiplier for a given pair+score (1.0 = neutral)
+function getLearnedMultiplier(pair, score) {
+  loadTradeOutcomes();
+  if (!_tradeOutcomes.length) return 1.0;
+  var bkt = bucketLabel(score);
+  var pairOutcomes = _tradeOutcomes.filter(function(o){ return o.pair === pair && bucketLabel(o.entryScore || o.buyScore || 0) === bkt; });
+  if (pairOutcomes.length < 3) return 1.0;  // not enough data
+  var wins     = pairOutcomes.filter(function(o){ return o.pnlPct > 0; }).length;
+  var winRate  = wins / pairOutcomes.length;
+  // Amplify good buckets, dampen poor ones
+  if (winRate >= 0.70) return 1.12;
+  if (winRate >= 0.55) return 1.05;
+  if (winRate >= 0.40) return 0.95;
+  return 0.88;
+}
+
+// Returns suggested buy score for a pair based on history
+function getSuggestedBuyScore(pair) {
+  loadTradeOutcomes();
+  var pairs = analyzeOutcomes();
+  if (!pairs[pair]) return null;
+  var buckets = pairs[pair];
+  // Find lowest score bucket with ≥3 trades AND winRate ≥ 55%
+  var ORDERED = ["50-59","60-69","70-79","80-89","90-99"];
+  for (var i = 0; i < ORDERED.length; i++) {
+    var b = buckets[ORDERED[i]];
+    if (b && b.count >= 3 && b.winRate >= 0.55) {
+      // Return the lower bound of this bucket
+      return parseInt(ORDERED[i].split("-")[0], 10);
+    }
+  }
+  return null;
+}
+
+function renderLearningPanel() {
+  var el = document.getElementById("strat-learning"); if (!el) return;
+  loadTradeOutcomes();
+  if (!_tradeOutcomes.length) {
+    el.innerHTML = "<div style='color:var(--text3);font-size:13px;padding:10px 0'>No trade outcomes yet. Run the bot in Sim mode to start collecting data — after a few trades the app will learn which score levels actually work.</div>";
+    return;
+  }
+  var analysis    = analyzeOutcomes();
+  var pairs       = Object.keys(analysis);
+  var totalTrades = _tradeOutcomes.length;
+  var totalWins   = _tradeOutcomes.filter(function(o){ return o.pnlPct > 0; }).length;
+  var overallWR   = totalTrades > 0 ? Math.round(totalWins / totalTrades * 100) : 0;
+  var avgPnl      = totalTrades > 0 ? (_tradeOutcomes.reduce(function(s,o){ return s + o.pnlPct; }, 0) / totalTrades).toFixed(2) : "0";
+
+  var html = "";
+  // Summary bar
+  html += "<div style='display:flex;gap:18px;padding:12px 0 14px;border-bottom:1px solid var(--border);flex-wrap:wrap'>";
+  html += "<div><div style='font-size:11px;color:var(--text3);margin-bottom:3px'>TOTAL TRADES LEARNED</div><div style='font-size:18px;font-weight:700;color:var(--text)'>" + totalTrades + "</div></div>";
+  html += "<div><div style='font-size:11px;color:var(--text3);margin-bottom:3px'>OVERALL WIN RATE</div><div style='font-size:18px;font-weight:700;color:" + (overallWR >= 55 ? "var(--green)" : overallWR >= 40 ? "var(--amber)" : "var(--red)") + "'>" + overallWR + "%</div></div>";
+  html += "<div><div style='font-size:11px;color:var(--text3);margin-bottom:3px'>AVG P&L / TRADE</div><div style='font-size:18px;font-weight:700;color:" + (parseFloat(avgPnl) >= 0 ? "var(--green)" : "var(--red)") + "'>" + (parseFloat(avgPnl) >= 0 ? "+" : "") + avgPnl + "%</div></div>";
+  html += "</div>";
+
+  // Per-pair breakdown
+  var BUCKETS = ["< 50","50-59","60-69","70-79","80-89","90-99"];
+  pairs.forEach(function(pair) {
+    var bkts    = analysis[pair];
+    var suggest = getSuggestedBuyScore(pair);
+    html += "<div style='margin-top:16px'>";
+    html += "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>";
+    html += "  <span style='font-size:13px;font-weight:600'>" + pair + "</span>";
+    if (suggest !== null) html += "  <span style='font-size:11px;padding:2px 9px;border-radius:20px;background:rgba(34,197,94,0.15);color:var(--green)'>💡 Suggested buy score: <strong>" + suggest + "</strong></span>";
+    html += "</div>";
+    html += "<table style='width:100%;border-collapse:collapse;font-size:11px'>";
+    html += "<thead><tr style='color:var(--text3)'><th style='text-align:left;padding:3px 6px;font-weight:600'>Score Range</th><th style='text-align:center;padding:3px 6px;font-weight:600'>Trades</th><th style='text-align:center;padding:3px 6px;font-weight:600'>Win %</th><th style='text-align:center;padding:3px 6px;font-weight:600'>Avg P&L</th><th style='text-align:left;padding:3px 6px;font-weight:600'>Signal Strength</th></tr></thead>";
+    html += "<tbody>";
+    BUCKETS.forEach(function(bName) {
+      var b = bkts[bName];
+      if (!b) return;
+      var wr   = Math.round(b.winRate * 100);
+      var col  = wr >= 65 ? "var(--green)" : wr >= 45 ? "var(--amber)" : "var(--red)";
+      var barW = Math.max(4, wr);
+      var mult = getLearnedMultiplier(pair, bName === "< 50" ? 40 : parseInt(bName.split("-")[0], 10));
+      var multStr = mult > 1.05 ? "↑ Boosted +" + Math.round((mult-1)*100) + "%" : mult < 0.95 ? "↓ Reduced " + Math.round((1-mult)*100) + "%" : "→ Neutral";
+      var multCol = mult > 1.05 ? "var(--green)" : mult < 0.95 ? "var(--red)" : "var(--text3)";
+      html += "<tr style='border-top:1px solid var(--border2)'>";
+      html += "<td style='padding:5px 6px;font-family:\"JetBrains Mono\",monospace;font-weight:600'>" + bName + "</td>";
+      html += "<td style='text-align:center;padding:5px 6px;color:var(--text3)'>" + b.count + "</td>";
+      html += "<td style='text-align:center;padding:5px 6px;color:" + col + ";font-weight:700'>" + wr + "%</td>";
+      html += "<td style='text-align:center;padding:5px 6px;color:" + (b.avgPnl >= 0 ? "var(--green)" : "var(--red)") + "'>" + (b.avgPnl >= 0 ? "+" : "") + b.avgPnl.toFixed(2) + "%</td>";
+      html += "<td style='padding:5px 6px'><span style='color:" + multCol + ";font-size:10px'>" + (b.count >= 3 ? multStr : "<span style=\"color:var(--text3)\">⏳ Need " + (3 - b.count) + " more trades</span>") + "</span></td>";
+      html += "</tr>";
+    });
+    html += "</tbody></table></div>";
+  });
+
+  html += "<div style='margin-top:12px;font-size:11px;color:var(--text3);line-height:1.6'>🧠 The adaptive multiplier automatically adjusts the momentum score for each pair based on historical accuracy. Buckets with ≥3 trades and ≥70% win rate get a +12% boost; poor performers get dampened. More sim trades = better calibration.</div>";
+  el.innerHTML = html;
+}
+
+function renderMLAccuracy() {
+  var el = document.getElementById("ml-accuracy"); if (!el) return;
+  loadTradeOutcomes();
+  if (_tradeOutcomes.length < 3) {
+    el.innerHTML = "<div style='color:var(--text3);font-size:13px;padding:10px 0'>Signal accuracy data will appear here after 3+ bot trades. Run the bot in Sim mode to start learning.</div>";
+    return;
+  }
+  var analysis = analyzeOutcomes();
+  var BUCKETS  = ["< 50","50-59","60-69","70-79","80-89","90-99"];
+  var html = "<div style='font-size:13px;font-weight:600;margin-bottom:12px'>Signal Accuracy by Score Range</div>";
+  html += "<div style='display:flex;flex-direction:column;gap:8px'>";
+  BUCKETS.forEach(function(bName) {
+    // Aggregate across all pairs
+    var count = 0, wins = 0, totalPnl = 0;
+    Object.values(analysis).forEach(function(pairBkts) {
+      var b = pairBkts[bName]; if (!b) return;
+      count    += b.count;
+      wins     += b.wins;
+      totalPnl += b.totalPnl;
+    });
+    if (!count) return;
+    var wr   = Math.round(wins / count * 100);
+    var col  = wr >= 65 ? "var(--green)" : wr >= 45 ? "var(--amber)" : "var(--red)";
+    var barW = Math.max(3, wr);
+    html += "<div>";
+    html += "  <div style='display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px'>";
+    html += "    <span style='color:var(--text3);font-family:\"JetBrains Mono\",monospace'>Score " + bName + "</span>";
+    html += "    <span style='color:" + col + ";font-weight:700'>" + wr + "% win · " + count + " trades · avg " + (totalPnl/count >= 0 ? "+" : "") + (totalPnl/count).toFixed(1) + "%</span>";
+    html += "  </div>";
+    html += "  <div style='height:6px;background:var(--bg4);border-radius:3px;overflow:hidden'>";
+    html += "    <div style='height:100%;width:" + barW + "%;background:" + col + ";border-radius:3px;transition:width 0.5s'></div>";
+    html += "  </div>";
+    html += "</div>";
+  });
+  html += "</div>";
+  el.innerHTML = html;
 }
 </script>
 
