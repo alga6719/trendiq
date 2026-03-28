@@ -619,17 +619,19 @@ button,input,select,textarea{font-family:inherit}
                   <input class="fld" id="set-kr-secret" type="password" placeholder="Paste your Kraken Private Key" autocomplete="off" style="margin-bottom:0;padding-right:36px">
                   <button onclick="toggleVis('set-kr-secret',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px">👁</button>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <button class="btn-purple" style="font-size:12px;padding:7px 18px" onclick="saveKrakenKeys()">Save &amp; Test</button>
+                  <button class="db-btn" style="font-size:12px;padding:7px 14px" onclick="testTradePermission()">Test Trading</button>
                   <button class="db-btn" style="font-size:12px;padding:7px 14px" onclick="clearKrakenKeys()">Clear Keys</button>
-                  <span id="set-kr-msg" style="font-size:12px;color:var(--text3)"></span>
                 </div>
+                <div id="set-kr-msg" style="font-size:12px;color:var(--text3);margin-top:8px;line-height:1.5"></div>
                 <div style="margin-top:12px;padding:12px 14px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--text3);line-height:1.8">
                   <div style="font-weight:600;color:var(--text2);margin-bottom:6px">Required Kraken API permissions</div>
                   <div>✅ <strong style="color:var(--text2)">Query Funds</strong> — to see your balance</div>
                   <div>✅ <strong style="color:var(--text2)">Query Open Orders &amp; Trades</strong> — for open orders + history</div>
                   <div>✅ <strong style="color:var(--text2)">Create &amp; Modify Orders</strong> — to place Snipe trades</div>
-                  <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)">Keys are stored in your browser only (localStorage) and sent over HTTPS. Never share your Private Key.</div>
+                  <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)">⚠️ If you get <strong style="color:var(--text2)">ETrade:User Locked</strong> even after enabling permissions, <strong style="color:var(--text2)">delete the API key and create a brand-new one</strong> — Kraken does not always apply permission edits to existing keys. Also make sure <strong style="color:var(--text2)">no IP restriction</strong> is set on the key.</div>
+                  <div style="margin-top:6px">Keys are stored in your browser only (localStorage) and sent over HTTPS. Never share your Private Key.</div>
                 </div>
               </div>
             </div>
@@ -1095,6 +1097,40 @@ async function saveKrakenKeys() {
     if (msg) { msg.textContent = "✗ " + e.message; msg.style.color = "var(--red,#ef4444)"; }
     updateKrakenBadge();
     showToast("❌ Kraken connection failed — check your keys");
+  }
+}
+
+async function testTradePermission() {
+  var msg = document.getElementById("set-kr-msg");
+  var k = localStorage.getItem("kr_key");
+  var s = localStorage.getItem("kr_secret");
+  if (!k || !s) {
+    if (msg) { msg.textContent = "⚠ Save your keys first, then test."; msg.style.color = "var(--amber)"; }
+    return;
+  }
+  if (msg) { msg.textContent = "Testing trading permission (validate-only, no real order)…"; msg.style.color = "var(--text3)"; }
+  try {
+    // validate=true tells Kraken to check the order without placing it
+    var res = await kProxy("/0/private/AddOrder", {
+      pair: "XBT/USD", type: "buy", ordertype: "market", volume: "0.0001", validate: "true"
+    });
+    // If we get here with no error, trading permission is confirmed
+    if (msg) { msg.textContent = "✅ Trading permission confirmed — your key can place orders."; msg.style.color = "var(--green)"; }
+    showToast("✅ Trading permission OK");
+  } catch(e) {
+    var friendly = krakenErrMsg([e.message]);
+    if (friendly === e.message) friendly = e.message; // fallback to raw if no match
+    if (msg) {
+      msg.style.color = "var(--red,#ef4444)";
+      if (e.message.indexOf("User Locked") !== -1) {
+        msg.innerHTML = "❌ <strong>ETrade:User Locked</strong> — your API key still can't trade.<br>"
+          + "→ <strong>Delete the key on Kraken and create a brand-new one</strong> with all permissions.<br>"
+          + "→ Make sure there is <strong>no IP restriction</strong> set on the new key.";
+      } else {
+        msg.textContent = "❌ " + friendly;
+      }
+    }
+    showToast("❌ Trading test failed");
   }
 }
 
@@ -1739,7 +1775,7 @@ function updateSnipeVolume() {
 }
 // Human-readable explanations for common Kraken API errors
 var KRAKEN_ERRORS = {
-  "ETrade:User Locked":           "Trading is locked on this API key. In Kraken → Security → API, edit your key and enable 'Create & modify orders'.",
+  "ETrade:User Locked":           "Trading locked — delete your API key on Kraken and create a brand-new one with all permissions enabled. Editing an existing key often doesn't work.",
   "EAPI:Invalid key":             "API key not recognised. Double-check the key in Settings.",
   "EAPI:Invalid signature":       "Invalid signature — the Private Key (Secret) is wrong. Re-paste it from Kraken → Security → API.",
   "EAPI:Invalid nonce":           "Nonce error — try again.",

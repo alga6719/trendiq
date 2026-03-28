@@ -80,7 +80,7 @@ module.exports = async (req, res) => {
 
   // Validate AddOrder parameters before sending to Kraken
   if (endpoint === "/0/private/AddOrder") {
-    const { pair, type, ordertype, volume } = params || {};
+    const { pair, type, ordertype, volume, validate } = params || {};
     if (!pair || !type || !ordertype || !volume) {
       return res.status(400).json({ error: "AddOrder requires: pair, type, ordertype, volume" });
     }
@@ -93,6 +93,7 @@ module.exports = async (req, res) => {
     if (isNaN(parseFloat(volume)) || parseFloat(volume) <= 0) {
       return res.status(400).json({ error: "volume must be a positive number" });
     }
+    // validate=true is allowed — it checks the order without placing it
   }
 
   try {
