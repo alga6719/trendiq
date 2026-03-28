@@ -3656,26 +3656,27 @@ function getTimeMultiplier(pair) {
 }
 
 // Returns time-of-day analysis for all buckets for a pair (for UI display)
+// Returns an ARRAY of { label, hours, count, winRate, avgPnl } — one entry per bucket
 function analyzeByTime(pair) {
-  var result = {};
-  TIME_BUCKETS.forEach(function(tb) {
+  return TIME_BUCKETS.map(function(tb) {
     var trades = _tradeOutcomes.filter(function(o) {
       return o.pair === pair && o.hour !== undefined && tb.hours.indexOf(o.hour) !== -1;
     });
-    if (!trades.length) return;
+    if (!trades.length) return { label: tb.label, hours: tb.hours, count: 0, winRate: 0, avgPnl: 0 };
     var wWins = 0, wTotal = 0, totalPnl = 0;
     trades.forEach(function(o) {
       var w = decayWeight(o.timestamp || Date.now());
       wTotal += w; if (o.pnlPct > 0) wWins += w;
       totalPnl += o.pnlPct;
     });
-    result[tb.label] = {
+    return {
+      label:   tb.label,
+      hours:   tb.hours,
       count:   trades.length,
       winRate: wTotal > 0 ? wWins / wTotal : 0,
       avgPnl:  totalPnl / trades.length
     };
   });
-  return result;
 }
 
 // ── Per-pair feature tuning (bias) ────────────────────────────────────────────
