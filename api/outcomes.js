@@ -1,38 +1,54 @@
 // /api/outcomes.js — Trade outcome persistence via Upstash KV (Redis REST API)
-// GET  /api/outcomes            → returns last 500 outcomes as JSON array
-// POST /api/outcomes            → appends a new outcome, trims to 500
+// GET  /api/outcomes  → returns last 500 outcomes as JSON array
+// POST /api/outcomes  → appends a new outcome, trims list to 500
+
+const https = require("https");
+const url   = require("url");
 
 const KV_URL   = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const LIST_KEY = "tiq_outcomes";
 const MAX_ITEMS = 500;
 
-async function kvCmd(...args) {
-  // Upstash Redis REST: POST /pipeline or GET /<cmd>/<args...>
-  const body = JSON.stringify(args);
-  const r = await fetch(`${KV_URL}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body,
-  });
-  const d = await r.json();
-  if (d.error) throw new Error(d.error);
-  return d.result;
-}
+function kvRequest(path, method, bodyObj) {
+  return new Promise((resolve, reject) => {
+    if (!KV_URL || !KV_TOKEN) {
+      return reject(new Error("KV_REST_API_URL / KV_REST_API_TOKEN not set"));
+    }
+    const base    = KV_URL.replace(/\/$/, "");
+    const fullUrl = base + path;
+    const parsed  = url.parse(fullUrl);
+    const body    = bodyObj ? JSON.stringify(bodyObj) : null;
 
-async function kvPipeline(commands) {
-  const r = await fetch(`${KV_URL}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(commands),
+    const opts = {
+      hostname: parsed.hostname,
+      port:     parsed.port || 443,
+      path:     parsed.path,
+      method:   method || "GET",
+      headers: {
+        "Authorization": "Bearer " + KV_TOKEN,
+        "Content-Type":  "application/json",
+      },
+    };
+    if (body) opts.headers["Content-Length"] = Buffer.byteLength(body);
+
+    const req = https.request(opts, (res) => {
+      let data = "";
+      res.on("data", (chunk) => data += chunk);
+      res.on("end", () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) return reject(new Error(parsed.error));
+          resolve({ status: res.statusCode, body: parsed });
+        } catch (e) {
+          resolve({ status: res.statusCode, body: data });
+        }
+      });
+    });
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
   });
-  return r.json();
 }
 
 module.exports = async function handler(req, res) {
@@ -47,29 +63,31 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    // ── GET: return stored outcomes ──────────────────────────────────────────
     if (req.method === "GET") {
-      // LRANGE tiq_outcomes 0 499  → most recent 500 items
-      const r = await fetch(`${KV_URL}/lrange/${LIST_KEY}/0/${MAX_ITEMS - 1}`, {
-        headers: { Authorization: `Bearer ${KV_TOKEN}` },
-      });
-      const d = await r.json();
-      const items = (d.result || []).map(item => {
+      const result = await kvRequest(
+        `/lrange/${encodeURIComponent(LIST_KEY)}/0/${MAX_ITEMS - 1}`,
+        "GET"
+      );
+      const raw   = result.body.result || [];
+      const items = raw.map(item => {
         try { return typeof item === "string" ? JSON.parse(item) : item; }
         catch(e) { return null; }
       }).filter(Boolean);
       return res.status(200).json({ outcomes: items });
     }
 
+    // ── POST: append a new outcome ───────────────────────────────────────────
     if (req.method === "POST") {
       let body = req.body;
       if (typeof body === "string") {
-        try { body = JSON.parse(body); } catch(e) { return res.status(400).json({ error: "Invalid JSON" }); }
+        try { body = JSON.parse(body); } catch(e) {
+          return res.status(400).json({ error: "Invalid JSON" });
+        }
       }
       if (!body || typeof body !== "object") {
         return res.status(400).json({ error: "Expected outcome object" });
       }
-
-      // Validate required fields
       if (!body.pair || typeof body.pnlPct !== "number") {
         return res.status(400).json({ error: "Missing pair or pnlPct" });
       }
@@ -86,8 +104,8 @@ module.exports = async function handler(req, res) {
         mode:        body.mode        || "sim",
       });
 
-      // LPUSH (prepend newest) + LTRIM to keep only MAX_ITEMS
-      await kvPipeline([
+      // LPUSH then LTRIM via pipeline
+      await kvRequest("/pipeline", "POST", [
         ["lpush", LIST_KEY, item],
         ["ltrim", LIST_KEY, 0, MAX_ITEMS - 1],
       ]);
@@ -96,8 +114,9 @@ module.exports = async function handler(req, res) {
     }
 
     return res.status(405).json({ error: "Method not allowed" });
+
   } catch (e) {
-    console.error("[outcomes]", e);
+    console.error("[outcomes]", e.message);
     return res.status(500).json({ error: e.message });
   }
 };
