@@ -869,7 +869,7 @@ var liveData = {};
 var momData  = [];
 var lastPricesFetch = 0;
 var chatHistory = [];
-var botMode = "live";  // "live" | "sim" | "idle"
+var botMode = "idle";  // "live" | "sim" | "idle"
 var momFilter = "all";
 var aiIdx = 0;
 var charts = {};
@@ -905,6 +905,23 @@ function setMode(mode) {
     badge.style.background = mode === "live" ? "" : mode === "sim" ? "rgba(59,130,246,0.25)" : "rgba(107,114,128,0.25)";
     badge.style.color      = mode === "live" ? "" : mode === "sim" ? "#60a5fa" : "var(--text3)";
   }
+
+  var msg = mode === "live" ? "🟢 Live Trading activated" : mode === "sim" ? "🔵 Simulation mode activated" : "⛔ Bot stopped";
+  showToast(msg);
+}
+
+function showToast(msg) {
+  var t = document.getElementById("trendiq-toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "trendiq-toast";
+    t.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1e2235;border:1px solid var(--border);color:var(--text);padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 4px 24px rgba(0,0,0,0.4);pointer-events:none;transition:opacity 0.3s";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = "1";
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.style.opacity = "0"; }, 2200);
 }
 
 function refreshAll() {

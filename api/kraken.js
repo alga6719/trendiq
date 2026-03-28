@@ -94,8 +94,12 @@ module.exports = async (req, res) => {
 
   try {
     const data = await krakenPost(endpoint, params || {});
+    // Log Kraken response summary so we can see errors in Vercel logs
+    const hasError = data.error && data.error.length;
+    console.log(`[kraken] ${endpoint} → error=${JSON.stringify(data.error)} result_keys=${Object.keys(data.result||{}).length}`);
     res.status(200).json(data);
   } catch (e) {
+    console.error(`[kraken] ${endpoint} threw:`, e.message);
     res.status(500).json({ error: e.message });
   }
 };
