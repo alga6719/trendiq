@@ -518,9 +518,30 @@ button,input,select,textarea{font-family:inherit}
           </div>
         </div>
         <div id="dtab-strategies" class="db-tab">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
             <div class="card-h">Strategies</div>
-            <button class="btn-purple" style="font-size:12px;padding:7px 14px" onclick="openStrategyEditor(-1)">+ New Strategy</button>
+            <div style="display:flex;gap:8px">
+              <button class="db-btn" style="font-size:12px;padding:7px 14px;color:var(--purple);border-color:rgba(139,92,246,0.35)" onclick="openPresetsModal()">📋 Load v1.0 Presets</button>
+              <button class="btn-purple" style="font-size:12px;padding:7px 14px" onclick="openStrategyEditor(-1)">+ New Strategy</button>
+            </div>
+          </div>
+
+          <!-- v1.0 Presets Modal -->
+          <div id="presets-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;padding:20px">
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:100%;max-width:680px;max-height:80vh;overflow-y:auto;padding:24px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="font-size:16px;font-weight:700">📋 TrendIQ v1.0 Strategy Presets</div>
+                <button onclick="closePresetsModal()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:0;line-height:1">×</button>
+              </div>
+              <p style="font-size:12px;color:var(--text3);margin-bottom:18px">Select any strategy from TrendIQ 1.0 to add to your bot. Parameters are mapped from the original win rate, avg return, and trade volume data.</p>
+
+              <div style="display:flex;flex-direction:column;gap:10px" id="presets-list"></div>
+
+              <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+                <button class="db-btn" onclick="loadAllPresets()" style="font-size:12px;padding:7px 14px;color:var(--green);border-color:rgba(34,197,94,0.3)">✅ Add All 8 Strategies</button>
+                <button class="db-btn" onclick="closePresetsModal()" style="font-size:12px;padding:7px 14px">Close</button>
+              </div>
+            </div>
           </div>
           <!-- Inline Strategy Editor -->
           <div id="strat-editor" style="display:none;margin-bottom:16px">
@@ -3054,6 +3075,86 @@ function saveStrategies() {
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({action: "save_strategies", strategies: _strategies})
   }).catch(function(e){ console.warn("[bot-config] strategy sync:", e.message); });
+}
+
+// ─── V1.0 PRESET STRATEGIES ───────────────────────────────────────────────────
+var V1_PRESETS = [
+  // Market Neutral group
+  { name:"Delta Neutral Pairs",    group:"Market Neutral", pair:"BTC/USD",  buyScore:55, sellScore:35, tp:3.5,  sl:-2.5, amount:100, mode:"both", v1Win:59, v1Avg:3.45, v1Trades:231 },
+  { name:"Statistical Arbitrage",  group:"Market Neutral", pair:"ETH/USD",  buyScore:58, sellScore:38, tp:3.2,  sl:-2.0, amount:100, mode:"both", v1Win:63, v1Avg:3.23, v1Trades:463 },
+  { name:"Mean Reversion",         group:"Market Neutral", pair:"SOL/USD",  buyScore:45, sellScore:62, tp:3.0,  sl:-2.0, amount:100, mode:"both", v1Win:66, v1Avg:3.05, v1Trades:281 },
+  { name:"Volatility Trading",     group:"Market Neutral", pair:"BTC/USD",  buyScore:60, sellScore:40, tp:1.8,  sl:-1.5, amount:100, mode:"both", v1Win:66, v1Avg:1.79, v1Trades:522 },
+  { name:"Funding Rate Capture",   group:"Market Neutral", pair:"ETH/USD",  buyScore:52, sellScore:42, tp:1.1,  sl:-0.8, amount:100, mode:"buy",  v1Win:62, v1Avg:1.09, v1Trades:470 },
+  { name:"Basis Trading",          group:"Market Neutral", pair:"BTC/USD",  buyScore:57, sellScore:37, tp:2.9,  sl:-2.0, amount:100, mode:"both", v1Win:62, v1Avg:2.94, v1Trades:372 },
+  { name:"Calendar Spread",        group:"Market Neutral", pair:"SOL/USD",  buyScore:50, sellScore:45, tp:1.9,  sl:-1.2, amount:100, mode:"both", v1Win:79, v1Avg:1.90, v1Trades:295 },
+  { name:"Cross-Exchange Spread",  group:"Market Neutral", pair:"AVAX/USD", buyScore:55, sellScore:38, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:70, v1Avg:2.33, v1Trades:503 }
+];
+
+function openPresetsModal() {
+  var list = document.getElementById("presets-list"); if (!list) return;
+  loadStrategies();
+  var existingNames = _strategies.map(function(s){ return s.name; });
+
+  list.innerHTML = V1_PRESETS.map(function(p, i) {
+    var alreadyAdded = existingNames.indexOf(p.name) !== -1;
+    var wrCol = p.v1Win >= 70 ? "var(--green)" : p.v1Win >= 60 ? "var(--amber)" : "var(--text3)";
+    return "<div style='padding:12px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px'>"
+      + "<div>"
+      + "  <div style='font-size:13px;font-weight:600;margin-bottom:3px'>" + p.name + " <span style='font-size:10px;color:var(--text3);font-weight:400;margin-left:6px'>" + p.group + "</span></div>"
+      + "  <div style='font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap'>"
+      + "    <span>Win: <strong style='color:" + wrCol + "'>" + p.v1Win + "%</strong></span>"
+      + "    <span>Avg: <strong style='color:var(--green)'>+" + p.v1Avg + "%</strong></span>"
+      + "    <span>Trades: " + p.v1Trades + "</span>"
+      + "    <span style='color:var(--text3)'>→ " + p.pair + " · Buy ≥" + p.buyScore + " · TP +" + p.tp + "% / SL " + p.sl + "%</span>"
+      + "  </div>"
+      + "</div>"
+      + (alreadyAdded
+        ? "<span style='font-size:11px;color:var(--green);font-weight:600'>✓ Added</span>"
+        : "<button class='btn-purple' style='font-size:11px;padding:5px 14px;flex-shrink:0' onclick='addPreset(" + i + ")'>+ Add</button>"
+      )
+      + "</div>";
+  }).join("");
+
+  var m = document.getElementById("presets-modal");
+  if (m) m.style.display = "flex";
+}
+
+function closePresetsModal() {
+  var m = document.getElementById("presets-modal"); if (m) m.style.display = "none";
+}
+
+function addPreset(idx) {
+  var p = V1_PRESETS[idx]; if (!p) return;
+  loadStrategies();
+  if (_strategies.find(function(s){ return s.name === p.name; })) {
+    showToast("⚠ " + p.name + " already exists"); return;
+  }
+  _strategies.push({
+    name: p.name, pair: p.pair, buyScore: p.buyScore, sellScore: p.sellScore,
+    tp: p.tp, sl: p.sl, amount: p.amount, mode: p.mode, enabled: true
+  });
+  saveStrategies();
+  renderStrategiesList();
+  showToast("✅ " + p.name + " added");
+  // Refresh the modal to show ✓ Added
+  openPresetsModal();
+}
+
+function loadAllPresets() {
+  loadStrategies();
+  var added = 0;
+  V1_PRESETS.forEach(function(p) {
+    if (_strategies.find(function(s){ return s.name === p.name; })) return;
+    _strategies.push({
+      name: p.name, pair: p.pair, buyScore: p.buyScore, sellScore: p.sellScore,
+      tp: p.tp, sl: p.sl, amount: p.amount, mode: p.mode, enabled: true
+    });
+    added++;
+  });
+  saveStrategies();
+  renderStrategiesList();
+  openPresetsModal(); // refresh modal counts
+  showToast("✅ Added " + added + " v1.0 strategies");
 }
 
 function openStrategyEditor(idx) {
