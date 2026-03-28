@@ -1,0 +1,42 @@
+{
+  "name": "TrendIQ",
+  "short_name": "TrendIQ",
+  "description": "Crypto momentum tracker and auto-trader with ML-powered signals",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f1117",
+  "theme_color": "#8b5cf6",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Home",
+      "description": "Open the live price dashboard",
+      "url": "/?tab=dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sniper Bot",
+      "short_name": "Bot",
+      "description": "Manage the auto-trader",
+      "url": "/?tab=sniper",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
