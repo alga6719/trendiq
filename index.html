@@ -888,6 +888,34 @@ button,input,select,textarea{font-family:inherit}
               </div>
             </div>
           </div>
+          <!-- ── ML ENGINE SETTINGS ─────────────────────────────────── -->
+          <div class="card" style="margin-top:20px">
+            <div style="font-size:14px;font-weight:600;margin-bottom:16px">🧠 ML Engine</div>
+            <div style="display:flex;gap:18px;margin-bottom:16px;padding:12px 14px;background:var(--bg3);border-radius:8px;flex-wrap:wrap">
+              <div><div style="font-size:10px;color:var(--text3);letter-spacing:.06em;margin-bottom:3px">TRADES LEARNED</div><div id="ml-set-count" style="font-size:18px;font-weight:700;color:var(--text)">—</div></div>
+              <div><div style="font-size:10px;color:var(--text3);letter-spacing:.06em;margin-bottom:3px">LAST RECALC</div><div id="ml-set-last" style="font-size:13px;color:var(--text2);margin-top:2px">Never</div></div>
+              <div><div style="font-size:10px;color:var(--text3);letter-spacing:.06em;margin-bottom:3px">SINCE LAST RECALC</div><div id="ml-set-since" style="font-size:13px;color:var(--text2);margin-top:2px">—</div></div>
+              <div><div style="font-size:10px;color:var(--text3);letter-spacing:.06em;margin-bottom:3px">ENGINE</div><div style="font-size:13px;color:var(--green);margin-top:2px;font-weight:600">● Active</div></div>
+            </div>
+            <div class="set-toggle" style="margin-bottom:10px">
+              <div><div class="st-name">Auto-recalibrate</div><div class="st-meta">Re-analyze multipliers after every N new trades</div></div>
+              <div class="tog on" id="tog-autoretrain" onclick="toggleAutoRetrain()"><div class="tog-thumb"></div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+              <label style="font-size:12px;color:var(--text3);white-space:nowrap">Recalculate every</label>
+              <input class="fld" type="number" id="retrain-threshold" value="10" min="1" max="100" style="width:72px;margin-bottom:0" oninput="saveMLSettings()">
+              <span style="font-size:12px;color:var(--text3)">new trades</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+              <button class="btn-purple" style="font-size:12px;padding:7px 14px" onclick="forceRetrain()">⚡ Recalculate Now</button>
+              <button class="db-btn" style="font-size:12px;padding:7px 14px" onclick="importHistoricalTrades()">📥 Import Kraken History</button>
+              <button class="db-btn" style="font-size:12px;padding:7px 14px;color:var(--red)" onclick="clearMLData()">🗑 Clear ML Data</button>
+            </div>
+            <div id="ml-set-msg" style="font-size:11px;line-height:1.6;min-height:16px"></div>
+            <div style="font-size:11px;color:var(--text3);margin-top:10px;padding-top:10px;border-top:1px solid var(--border2);line-height:1.7">
+              The engine recalculates in real-time after every trade. <strong style="color:var(--text2)">Auto-recalibrate</strong> runs a full re-analysis at your interval and updates strategy suggestions. <strong style="color:var(--text2)">Import Kraken History</strong> seeds the model with your real closed trades so learning starts immediately — no need to wait for sim trades.
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1904,7 +1932,7 @@ function showDash(tab,el) {
     if(tab==="dashboard")  { initPerfChart(); initSentimentGauge(); }
     if(tab==="portfolio")  { initPortfolioChart(); fetchKraken(); }
     if(tab==="history")    { fetchKraken(); if(krakenTrades.length){ populatePairFilter(); var ce=document.getElementById("hist-count");if(ce)ce.textContent=krakenTrades.length+" trades"; } }
-    if(tab==="settings")   { initSettingsTab(); }
+    if(tab==="settings")   { initSettingsTab(); renderMLSettingsPanel(); }
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
     if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
     if(tab==="ml")         { renderMLAccuracy(); }
@@ -2397,6 +2425,7 @@ setTimeout(function(){
 setTimeout(fetchKraken, 800);  // load Kraken balance on page open (after prices start)
 updateKrakenBadge();           // reflect saved-key state in Settings badge immediately
 syncOutcomesFromKV();          // pull trade history from KV cloud (non-blocking)
+loadMLSettings();              // restore ML recalibration settings from localStorage
 loadPriceAlerts();             // restore saved price alerts from localStorage
 loadStrategies();              // restore saved strategies from localStorage
 
@@ -3423,6 +3452,8 @@ function recordTradeOutcome(outcome) {
   // Refresh learning panels immediately
   if (document.getElementById("strat-learning")) renderLearningPanel();
   if (document.getElementById("ml-accuracy"))   renderMLAccuracy();
+  // Auto-recalibrate check
+  checkAutoRetrain();
 }
 
 // ── Score bucket: 0-49, 50-59, 60-69, 70-79, 80-89, 90-99 ──
@@ -3591,6 +3622,212 @@ function renderMLAccuracy() {
   });
   html += "</div>";
   el.innerHTML = html;
+}
+
+// ─── ML ENGINE SETTINGS ───────────────────────────────────────────────────────
+var _mlAutoRetrain      = true;
+var _mlRetrainThreshold = 10;
+var _mlLastRetrain      = null;
+var _mlTradesSinceRetrain = 0;
+
+function loadMLSettings() {
+  try {
+    var s = JSON.parse(localStorage.getItem("tiq_ml_settings") || "{}");
+    _mlAutoRetrain        = s.autoRetrain !== false;  // default true
+    _mlRetrainThreshold   = s.threshold   || 10;
+    _mlLastRetrain        = s.lastRetrain  || null;
+    _mlTradesSinceRetrain = s.sinceRetrain || 0;
+  } catch(e) {}
+}
+
+function saveMLSettings() {
+  var thresh = document.getElementById("retrain-threshold");
+  if (thresh) _mlRetrainThreshold = parseInt(thresh.value, 10) || 10;
+  try {
+    localStorage.setItem("tiq_ml_settings", JSON.stringify({
+      autoRetrain:  _mlAutoRetrain,
+      threshold:    _mlRetrainThreshold,
+      lastRetrain:  _mlLastRetrain,
+      sinceRetrain: _mlTradesSinceRetrain
+    }));
+  } catch(e) {}
+}
+
+function toggleAutoRetrain() {
+  _mlAutoRetrain = !_mlAutoRetrain;
+  var tog = document.getElementById("tog-autoretrain");
+  if (tog) { _mlAutoRetrain ? tog.classList.add("on") : tog.classList.remove("on"); }
+  saveMLSettings();
+}
+
+// Called after every new trade — triggers recalibration if threshold hit
+function checkAutoRetrain() {
+  loadMLSettings();
+  _mlTradesSinceRetrain++;
+  if (_mlAutoRetrain && _mlTradesSinceRetrain >= _mlRetrainThreshold) {
+    forceRetrain();
+  } else {
+    saveMLSettings();
+  }
+}
+
+// Full recalibration: re-analyze all outcomes, refresh all ML panels
+function forceRetrain() {
+  loadTradeOutcomes();
+  _mlLastRetrain        = Date.now();
+  _mlTradesSinceRetrain = 0;
+  saveMLSettings();
+  renderLearningPanel();
+  renderMLAccuracy();
+  buildMomData();   // recompute momentum scores with updated multipliers
+  renderMLSettingsPanel();
+  var msg = document.getElementById("ml-set-msg");
+  if (msg) {
+    msg.style.color = "var(--green)";
+    msg.textContent = "✅ ML recalibrated — " + _tradeOutcomes.length + " trades analyzed, score multipliers updated.";
+    setTimeout(function(){ if(msg) msg.textContent = ""; }, 5000);
+  }
+}
+
+function renderMLSettingsPanel() {
+  loadTradeOutcomes(); loadMLSettings();
+  var countEl = document.getElementById("ml-set-count");
+  var lastEl  = document.getElementById("ml-set-last");
+  var sinceEl = document.getElementById("ml-set-since");
+  var tog     = document.getElementById("tog-autoretrain");
+  var thresh  = document.getElementById("retrain-threshold");
+  if (countEl) countEl.textContent = _tradeOutcomes.length;
+  if (lastEl)  lastEl.textContent  = _mlLastRetrain ? new Date(_mlLastRetrain).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "Never";
+  if (sinceEl) {
+    var remaining = Math.max(0, _mlRetrainThreshold - _mlTradesSinceRetrain);
+    sinceEl.textContent = _mlAutoRetrain
+      ? (_mlTradesSinceRetrain + " trades (" + remaining + " until next recalc)")
+      : "Auto-recalc disabled";
+  }
+  if (tog)    { _mlAutoRetrain ? tog.classList.add("on") : tog.classList.remove("on"); }
+  if (thresh) thresh.value = _mlRetrainThreshold;
+}
+
+// Import real closed trades from Kraken to seed the ML model
+async function importHistoricalTrades() {
+  var msg = document.getElementById("ml-set-msg");
+  var key = localStorage.getItem("kr_key");
+  var sec = localStorage.getItem("kr_secret");
+  if (!key || !sec) {
+    if (msg) { msg.style.color = "var(--amber)"; msg.textContent = "⚠️ Connect your Kraken API first (API Connections above) to import trade history."; }
+    return;
+  }
+  if (msg) { msg.style.color = "var(--text3)"; msg.textContent = "📥 Fetching Kraken trade history…"; }
+  try {
+    var result = await kProxy("/0/private/TradesHistory", {trades: "true"});
+    var trades = result.result && result.result.trades ? result.result.trades : {};
+    var tradeList = Object.values(trades);
+    if (!tradeList.length) {
+      if (msg) { msg.style.color = "var(--text3)"; msg.textContent = "No trade history found on Kraken."; }
+      return;
+    }
+
+    // Group buys and sells by normalized pair
+    var byPair = {};
+    tradeList.forEach(function(t) {
+      var pair = normalizeKrakenPair(t.pair || "");
+      if (!pair) return;
+      if (!byPair[pair]) byPair[pair] = { buys: [], sells: [] };
+      if (t.type === "buy") byPair[pair].buys.push(t);
+      else byPair[pair].sells.push(t);
+    });
+
+    loadTradeOutcomes();
+    var existingTs = new Set(_tradeOutcomes.map(function(o){ return o.timestamp; }));
+    var imported = 0;
+
+    Object.keys(byPair).forEach(function(pair) {
+      var pb = byPair[pair];
+      pb.buys.sort(function(a,b){ return a.time - b.time; });
+      pb.sells.sort(function(a,b){ return a.time - b.time; });
+      var usedBuyIdx = [];
+
+      pb.sells.forEach(function(sell) {
+        // Find the closest preceding unmatched buy
+        var buyIdx = -1;
+        for (var i = 0; i < pb.buys.length; i++) {
+          if (usedBuyIdx.indexOf(i) === -1 && pb.buys[i].time <= sell.time) { buyIdx = i; }
+        }
+        var buy = buyIdx >= 0 ? pb.buys[buyIdx] : null;
+        if (buyIdx >= 0) usedBuyIdx.push(buyIdx);
+
+        var ts = Math.round(parseFloat(sell.time) * 1000);
+        if (existingTs.has(ts)) return;  // already imported
+
+        var entryPrice = buy ? parseFloat(buy.price) : parseFloat(sell.price);
+        var exitPrice  = parseFloat(sell.price);
+        var pnlPct     = buy ? ((exitPrice - entryPrice) / entryPrice * 100) : 0;
+        var pnlUsd     = parseFloat(sell.cost) - (buy ? parseFloat(buy.cost) : 0);
+        var durMin     = buy ? Math.round((parseFloat(sell.time) - parseFloat(buy.time)) / 60) : 0;
+
+        _tradeOutcomes.push({
+          pair:        pair,
+          entryScore:  65,   // real entry score unknown, use neutral
+          buyScore:    65,
+          pnlPct:      parseFloat(pnlPct.toFixed(3)),
+          pnlUsd:      parseFloat(pnlUsd.toFixed(2)),
+          exitReason:  "Historical",
+          durationMin: durMin,
+          timestamp:   ts,
+          mode:        "live"
+        });
+        existingTs.add(ts);
+        imported++;
+      });
+    });
+
+    if (imported > 0) {
+      _tradeOutcomes.sort(function(a,b){ return b.timestamp - a.timestamp; });
+      saveTradeOutcomes();
+      forceRetrain();
+      if (msg) {
+        msg.style.color = "var(--green)";
+        msg.textContent = "✅ Imported " + imported + " historical trades from Kraken. ML model updated!";
+      }
+    } else {
+      if (msg) { msg.style.color = "var(--text3)"; msg.textContent = "No new trades to import — already up to date."; }
+    }
+  } catch(e) {
+    if (msg) { msg.style.color = "var(--red)"; msg.textContent = "❌ " + e.message; }
+  }
+}
+
+// Normalize Kraken pair codes to our "BTC/USD" format
+function normalizeKrakenPair(pair) {
+  var MAP = {
+    "XXBTZUSD":"BTC/USD","XBTUSD":"BTC/USD","XBTUSDT":"BTC/USD",
+    "XETHZUSD":"ETH/USD","ETHUSD":"ETH/USD","ETHUSDT":"ETH/USD",
+    "SOLUSD":"SOL/USD","SOLZUSD":"SOL/USD","SOLUSDT":"SOL/USD",
+    "AVAXUSD":"AVAX/USD","AVAXUSDT":"AVAX/USD",
+    "BNBUSD":"BNB/USD","BNBUSDT":"BNB/USD",
+    "ARBUSD":"ARB/USD","ARBUSDT":"ARB/USD",
+    "OPUSD":"OP/USD","OPUSDT":"OP/USD",
+    "DOTUSD":"DOT/USD","LINKUSD":"LINK/USD",
+    "ADAUSD":"ADA/USD","ADAZUSD":"ADA/USD",
+    "XRPUSD":"XRP/USD","XXRPZUSD":"XRP/USD","XRPUSDT":"XRP/USD",
+    "MATICUSD":"MATIC/USD","DOGEUSD":"DOGE/USD",
+    "LTCUSD":"LTC/USD","XLTCZUSD":"LTC/USD"
+  };
+  return MAP[pair] || (pair.replace("ZUSD","/USD").replace("USD","/USD").includes("/") ? pair.replace("ZUSD","/USD").replace(/([A-Z]+)USD$/,"$1/USD") : "");
+}
+
+function clearMLData() {
+  if (!confirm("Clear all ML training data? This cannot be undone.")) return;
+  _tradeOutcomes = [];
+  saveTradeOutcomes();
+  _mlLastRetrain = null;
+  _mlTradesSinceRetrain = 0;
+  saveMLSettings();
+  renderLearningPanel();
+  renderMLAccuracy();
+  renderMLSettingsPanel();
+  var msg = document.getElementById("ml-set-msg");
+  if (msg) { msg.style.color = "var(--text3)"; msg.textContent = "ML data cleared."; }
 }
 </script>
 
