@@ -678,24 +678,55 @@ button,input,select,textarea{font-family:inherit}
           <div class="card"><table class="tbl"><thead><tr><th>Token</th><th>Price</th><th>24h %</th><th>Volume</th><th>Signal</th></tr></thead><tbody id="watchlistTbl"></tbody></table></div>
         </div>
         <div id="dtab-sniper" class="db-tab">
-          <div class="card-h" style="margin-bottom:20px">Sniper Bot</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+            <div class="card-h">Sniper Bot</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:11px;color:var(--text3)">Mode:</span>
+              <button class="db-btn" id="btnLive"  onclick="setMode('live')" style="font-size:11px;padding:4px 10px">Live</button>
+              <button class="db-btn" id="btnSim"   onclick="setMode('sim')"  style="font-size:11px;padding:4px 10px">Sim</button>
+              <button class="db-btn" id="btnStop"  onclick="setMode('idle')" style="font-size:11px;padding:4px 10px">Stop</button>
+            </div>
+          </div>
           <div class="mc-grid">
             <div class="mc"><div class="mc-label">Net Flow (7d)</div><div class="mc-val" id="bot-pnl" style="font-size:20px">—</div><div class="mc-sub" id="bot-pnl-sub">Connect Kraken</div></div>
             <div class="mc"><div class="mc-label">Trades (7d)</div><div class="mc-val" id="bot-trades7d" style="font-size:20px">—</div><div class="mc-sub">From Kraken history</div></div>
             <div class="mc"><div class="mc-label">Win Rate</div><div class="mc-val" id="bot-win-rate" style="font-size:20px">—</div><div class="mc-sub" id="bot-total-trades">Sell vs buy price</div></div>
             <div class="mc"><div class="mc-label">Bot Status</div><div class="mc-val" id="bot-status" style="font-size:16px;color:var(--text3)">Idle</div></div>
           </div>
-          <div class="g2">
-            <div class="card"><div class="card-h">Configuration</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
-                <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">MIN CONFIDENCE</label><input class="fld" value="72%" style="margin-bottom:0"></div>
-                <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">MAX SLIPPAGE</label><input class="fld" value="0.5%" style="margin-bottom:0"></div>
-                <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">STOP LOSS</label><input class="fld" value="-5%" style="margin-bottom:0"></div>
-                <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">TAKE PROFIT</label><input class="fld" value="+12%" style="margin-bottom:0"></div>
+          <div class="g2" style="margin-bottom:14px">
+            <div class="card"><div class="card-h" style="margin-bottom:12px">How It Works</div>
+              <div style="font-size:12px;color:var(--text3);line-height:1.8">
+                <div style="margin-bottom:6px">The bot uses your <strong style="color:var(--text2)">Strategies</strong> to auto-trade. For each enabled strategy:</div>
+                <div>🟢 <strong style="color:var(--text2)">BUY</strong> when momentum score ≥ Buy Score threshold</div>
+                <div>🎯 <strong style="color:var(--text2)">TAKE PROFIT</strong> closes position at +TP%</div>
+                <div>🛑 <strong style="color:var(--text2)">STOP LOSS</strong> closes position at SL%</div>
+                <div>📉 <strong style="color:var(--text2)">SELL SIGNAL</strong> closes when score ≤ Sell Score</div>
+                <div style="margin-top:8px;padding:8px 10px;background:rgba(59,130,246,0.1);border-radius:6px;color:#60a5fa">💡 Use <strong>Sim mode</strong> to test without real orders. Set up strategies in the Strategies tab first.</div>
               </div>
-              <div style="margin-top:14px"><button class="btn-purple" style="font-size:12px;padding:7px 16px">Save Config</button></div>
             </div>
-            <div class="card"><div class="card-h" style="margin-bottom:14px">Daily P&amp;L (7d)</div><div style="position:relative;height:180px"><canvas id="botChart"></canvas></div></div>
+            <div class="card"><div class="card-h" style="margin-bottom:14px">Daily P&amp;L (7d)</div><div style="position:relative;height:160px"><canvas id="botChart"></canvas></div></div>
+          </div>
+
+          <!-- Open Positions -->
+          <div class="card" style="margin-bottom:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div style="font-size:14px;font-weight:600">Open Positions</div>
+              <span id="bot-pos-count" style="font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 10px;border-radius:20px">None</span>
+            </div>
+            <div id="bot-positions">
+              <div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">No active positions — start the bot in Sim or Live mode.</div>
+            </div>
+          </div>
+
+          <!-- Activity Log -->
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div style="font-size:14px;font-weight:600">Activity Log</div>
+              <button class="db-btn" onclick="clearBotLog()" style="font-size:10px;padding:3px 8px">Clear</button>
+            </div>
+            <div id="bot-log" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);max-height:220px;overflow-y:auto;line-height:1.9">
+              <div style="padding:6px 0;color:var(--text3)">Waiting for bot to start…</div>
+            </div>
           </div>
         </div>
         <!-- ══════ SOLANA SNIPER TAB ══════ -->
@@ -1462,6 +1493,14 @@ function setMode(mode) {
     bst.textContent = mode === "live" ? "Live" : mode === "sim" ? "Sim" : "Idle";
     bst.style.color = mode === "live" ? "var(--green)" : mode === "sim" ? "#60a5fa" : "var(--text3)";
   }
+
+  // Start or stop the auto-trader engine
+  if (mode === "live" || mode === "sim") {
+    stopAutoTrader();   // stop any previous loop first
+    startAutoTrader();  // start fresh with the new mode
+  } else {
+    stopAutoTrader();
+  }
 }
 
 function showToast(msg) {
@@ -1841,7 +1880,7 @@ function showDash(tab,el) {
     if(tab==="settings")   { initSettingsTab(); }
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
     if(tab==="strategies") { initStratChart(); renderStrategiesList(); }
-    if(tab==="sniper")     { initBotChart(); }
+    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
       else { renderMomTopCards(); renderMomTable(); renderMomAI(); }
@@ -3047,6 +3086,249 @@ function checkPriceAlerts() {
     }
   });
   if (fired) { savePriceAlerts(); renderAlertsList(); }
+}
+
+// ─── AUTO-TRADER ENGINE ──────────────────────────────────────────────────────
+var _botPositions   = {};   // { "stratName|pair": {stratName,pair,entryPrice,entryTime,amount,qty,tp,sl,mode} }
+var _botLog         = [];   // [{time, msg, color}] — last 80 entries
+var _autoTraderLoop = null;
+
+function loadBotPositions() {
+  try { _botPositions = JSON.parse(localStorage.getItem("tiq_positions") || "{}"); } catch(e) { _botPositions = {}; }
+}
+function saveBotPositions() {
+  try { localStorage.setItem("tiq_positions", JSON.stringify(_botPositions)); } catch(e) {}
+}
+
+function botLog(msg, color) {
+  _botLog.unshift({ time: new Date().toLocaleTimeString(), msg: msg, color: color || "var(--text2)" });
+  if (_botLog.length > 80) _botLog.length = 80;
+  renderBotLog();
+}
+function clearBotLog() { _botLog = []; renderBotLog(); showToast("Log cleared"); }
+
+function startAutoTrader() {
+  if (_autoTraderLoop) return;  // already running
+  loadBotPositions();
+  botLog("🤖 Auto-trader started [" + botMode.toUpperCase() + " mode]", "var(--green)");
+  renderBotPositions();
+  runAutoTraderCycle();  // immediate first run
+  _autoTraderLoop = setInterval(runAutoTraderCycle, 30000);
+}
+function stopAutoTrader() {
+  if (_autoTraderLoop) { clearInterval(_autoTraderLoop); _autoTraderLoop = null; }
+  botLog("⛔ Auto-trader stopped", "var(--red)");
+}
+
+async function runAutoTraderCycle() {
+  loadStrategies();
+  loadBotPositions();
+  var active = _strategies.filter(function(s){ return s.enabled; });
+  if (!active.length) return;
+  if (!momData.length) { botLog("⏳ Waiting for price data…", "var(--text3)"); return; }
+
+  for (var i = 0; i < active.length; i++) {
+    var s      = active[i];
+    var posKey = s.name + "|" + s.pair;
+    var pos    = _botPositions[posKey] || null;
+    var price  = liveData[s.pair] ? liveData[s.pair].price : 0;
+    if (!price) continue;
+
+    var momEntry = momData.find(function(m){ return m.sym === s.pair; });
+    var score    = momEntry ? momEntry.score : 50;
+
+    // ── CHECK OPEN POSITION: TP / SL / Sell-signal ──
+    if (pos) {
+      var pctChg  = ((price - pos.entryPrice) / pos.entryPrice) * 100;
+      var tpHit   = pctChg >= pos.tp;
+      var slHit   = pctChg <= pos.sl;
+      var sigSell = (s.mode !== "buy") && score <= s.sellScore;
+
+      if (tpHit || slHit || sigSell) {
+        var closeReason = tpHit  ? ("🎯 Take-profit +" + pos.tp + "%")
+                        : slHit  ? ("🛑 Stop-loss "   + pos.sl + "%")
+                        : ("📉 Sell signal (" + score + "/100 ≤ " + s.sellScore + ")");
+        await autoExecute(s, "sell", price, closeReason, pos);
+        delete _botPositions[posKey];
+        saveBotPositions();
+      }
+      continue; // one position per strategy at a time
+    }
+
+    // ── NO POSITION: look for a buy signal ──
+    if (s.mode !== "sell" && score >= s.buyScore) {
+      await autoExecute(s, "buy", price, "📈 Buy signal (" + score + "/100 ≥ " + s.buyScore + ")", null);
+    }
+  }
+
+  renderBotPositions();
+  // Refresh bot status metric card
+  var posCount = Object.keys(_botPositions).length;
+  var bst = document.getElementById("bot-status");
+  if (bst && botMode !== "idle") {
+    bst.textContent = (botMode === "live" ? "Live" : "Sim") + (posCount ? " · " + posCount + " pos" : "");
+    bst.style.color = botMode === "live" ? "var(--green)" : "#60a5fa";
+  }
+}
+
+async function autoExecute(strat, side, price, reason, existingPos) {
+  var posKey = strat.name + "|" + strat.pair;
+  var ts     = new Date().toLocaleTimeString();
+
+  if (side === "buy") {
+    var qty = strat.amount / price;
+
+    if (botMode === "live") {
+      try {
+        var res = await kProxy("/0/private/AddOrder", {
+          pair:      krakenPairName(strat.pair),
+          type:      "buy",
+          ordertype: "market",
+          volume:    qty.toFixed(8)
+        });
+        var txId = (res.result && res.result.txid) ? res.result.txid[0] : "?";
+        botLog(ts + "  🟢 LIVE BUY  " + strat.pair + " @ $" + fP(price) + "  $" + strat.amount + "  " + reason + "  txid:" + txId, "var(--green)");
+      } catch(e) {
+        botLog(ts + "  ❌ BUY FAILED " + strat.pair + " — " + e.message, "var(--red)");
+        return;
+      }
+    } else {
+      botLog(ts + "  🔵 SIM BUY   " + strat.pair + " @ $" + fP(price) + "  $" + strat.amount + "  " + reason, "#60a5fa");
+    }
+
+    _botPositions[posKey] = {
+      stratName:  strat.name,
+      pair:       strat.pair,
+      entryPrice: price,
+      entryTime:  Date.now(),
+      amount:     strat.amount,
+      qty:        qty,
+      tp:         strat.takeProfit,
+      sl:         strat.stopLoss,
+      mode:       botMode
+    };
+    saveBotPositions();
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification("TrendIQ " + (botMode==="live"?"LIVE ":"SIM ") + "BUY · " + strat.pair, {
+        body: "@ $" + fP(price) + " · " + reason, icon: "/favicon.ico"
+      });
+    }
+
+  } else if (side === "sell" && existingPos) {
+    var pnlUsd = (price - existingPos.entryPrice) * existingPos.qty;
+    var pnlPct = ((price - existingPos.entryPrice) / existingPos.entryPrice * 100).toFixed(2);
+    var pnlStr = (pnlUsd >= 0 ? "+" : "") + "$" + Math.abs(pnlUsd).toFixed(2) + " (" + (pnlUsd >= 0 ? "+" : "") + pnlPct + "%)";
+    var logCol = pnlUsd >= 0 ? "var(--green)" : "var(--red)";
+
+    if (botMode === "live") {
+      try {
+        var res2 = await kProxy("/0/private/AddOrder", {
+          pair:      krakenPairName(strat.pair),
+          type:      "sell",
+          ordertype: "market",
+          volume:    existingPos.qty.toFixed(8)
+        });
+        var txId2 = (res2.result && res2.result.txid) ? res2.result.txid[0] : "?";
+        botLog(ts + "  🔴 LIVE SELL " + strat.pair + " @ $" + fP(price) + "  P&L: " + pnlStr + "  " + reason + "  txid:" + txId2, logCol);
+      } catch(e) {
+        botLog(ts + "  ❌ SELL FAILED " + strat.pair + " — " + e.message, "var(--red)");
+        return;  // don't wipe position if sell failed
+      }
+    } else {
+      botLog(ts + "  🔵 SIM SELL  " + strat.pair + " @ $" + fP(price) + "  P&L: " + pnlStr + "  " + reason, logCol);
+    }
+
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification("TrendIQ SELL · " + pnlStr, {
+        body: strat.pair + " @ $" + fP(price) + " · " + reason, icon: "/favicon.ico"
+      });
+    }
+  }
+}
+
+// Converts internal "BTC/USD" → Kraken API pair name
+function krakenPairName(pair) {
+  var MAP = {
+    "BTC/USD":"XBTUSD",  "ETH/USD":"XETHZUSD",
+    "SOL/USD":"SOLUSD",  "AVAX/USD":"AVAXUSD",
+    "BNB/USD":"BNBUSD",  "ARB/USD":"ARBUSD",
+    "OP/USD":"OPUSD",    "WIF/USD":"WIFUSD"
+  };
+  return MAP[pair] || pair.replace("/","");
+}
+
+function renderBotPositions() {
+  loadBotPositions();
+  var el    = document.getElementById("bot-positions"); if (!el) return;
+  var cntEl = document.getElementById("bot-pos-count");
+  var keys  = Object.keys(_botPositions);
+
+  if (cntEl) cntEl.textContent = keys.length ? keys.length + " open" : "None";
+
+  if (!keys.length) {
+    el.innerHTML = "<div style='padding:16px;text-align:center;color:var(--text3);font-size:13px'>No active positions — enable strategies and start the bot.</div>";
+    return;
+  }
+
+  var html = "";
+  keys.forEach(function(key) {
+    var p      = _botPositions[key];
+    var cur    = liveData[p.pair] ? liveData[p.pair].price : p.entryPrice;
+    var pnlUsd = (cur - p.entryPrice) * p.qty;
+    var pnlPct = ((cur - p.entryPrice) / p.entryPrice * 100).toFixed(2);
+    var pnlCol = pnlUsd >= 0 ? "var(--green)" : "var(--red)";
+    var tpPrice = p.entryPrice * (1 + p.tp / 100);
+    var slPrice = p.entryPrice * (1 + p.sl / 100);
+    var elapsed = Math.floor((Date.now() - p.entryTime) / 60000);
+    var elStr   = elapsed < 60 ? elapsed + "m" : Math.floor(elapsed/60) + "h " + (elapsed%60) + "m";
+    var modeBg  = p.mode === "live" ? "rgba(34,197,94,0.12)" : "rgba(59,130,246,0.12)";
+    var modeCol = p.mode === "live" ? "var(--green)" : "#60a5fa";
+
+    html += "<div style='padding:12px 14px;background:var(--bg3);border-radius:8px;margin-bottom:8px;border-left:3px solid " + pnlCol + "'>";
+    html += "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>";
+    html += "  <div style='display:flex;align-items:center;gap:8px'>";
+    html += "    <span style='font-weight:700;font-size:13px'>" + escHtml(p.pair) + "</span>";
+    html += "    <span style='font-size:10px;padding:2px 7px;border-radius:4px;background:" + modeBg + ";color:" + modeCol + "'>" + p.mode.toUpperCase() + "</span>";
+    html += "    <span style='font-size:11px;color:var(--text3)'>" + escHtml(p.stratName) + "</span>";
+    html += "  </div>";
+    html += "  <span style='font-size:13px;font-weight:700;color:" + pnlCol + ";font-family:\"JetBrains Mono\",monospace'>" + (pnlUsd >= 0 ? "+" : "") + "$" + Math.abs(pnlUsd).toFixed(2) + " (" + (pnlUsd >= 0 ? "+" : "") + pnlPct + "%)</span>";
+    html += "</div>";
+    html += "<div style='display:flex;gap:14px;font-size:11px;color:var(--text3);flex-wrap:wrap;margin-bottom:8px'>";
+    html += "  <span>Entry <strong style='color:var(--text2)'>$" + fP(p.entryPrice) + "</strong></span>";
+    html += "  <span>Now <strong style='color:var(--text2)'>$" + fP(cur) + "</strong></span>";
+    html += "  <span>Size <strong style='color:var(--text2)'>$" + p.amount + "</strong></span>";
+    html += "  <span>TP <strong style='color:var(--green)'>$" + fP(tpPrice) + " (+" + p.tp + "%)</strong></span>";
+    html += "  <span>SL <strong style='color:var(--red)'>$" + fP(slPrice) + " (" + p.sl + "%)</strong></span>";
+    html += "  <span>Open <strong style='color:var(--text2)'>" + elStr + "</strong></span>";
+    html += "</div>";
+    html += "<button class='db-btn' style='font-size:10px;padding:3px 10px;color:var(--red);border-color:rgba(239,68,68,0.3)' onclick='closePosition(\"" + key.replace(/\\/g,"\\\\").replace(/"/g,"&quot;") + "\")'>Close Position</button>";
+    html += "</div>";
+  });
+  el.innerHTML = html;
+}
+
+function renderBotLog() {
+  var el = document.getElementById("bot-log"); if (!el) return;
+  if (!_botLog.length) {
+    el.innerHTML = "<div style='padding:6px 0;color:var(--text3)'>No activity yet…</div>";
+    return;
+  }
+  var html = "";
+  _botLog.slice(0, 50).forEach(function(e) {
+    html += "<div style='color:" + e.color + ";padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04)'>" + escHtml(e.msg) + "</div>";
+  });
+  el.innerHTML = html;
+}
+
+async function closePosition(key) {
+  loadBotPositions();
+  var pos = _botPositions[key]; if (!pos) { showToast("Position not found"); return; }
+  var price = liveData[pos.pair] ? liveData[pos.pair].price : pos.entryPrice;
+  var strat = (_strategies.find(function(s){ return s.name === pos.stratName; })) || { name: pos.stratName, pair: pos.pair, takeProfit: pos.tp, stopLoss: pos.sl, amount: pos.amount, mode: "both" };
+  await autoExecute(strat, "sell", price, "🖐 Manual close", pos);
+  delete _botPositions[key];
+  saveBotPositions();
+  renderBotPositions();
 }
 </script>
 
