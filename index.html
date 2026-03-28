@@ -1098,12 +1098,13 @@ function renderKrakenTrades() {
     el.innerHTML = "<tr><td colspan='7' style='text-align:center;color:var(--text3);padding:24px'><div style='margin-bottom:6px'>No trade history found</div><div style='font-size:11px'>Connect Kraken API in Settings to see your real trades</div></td></tr>";
     return;
   }
+  var avgBuyPrices = computeAvgBuyPrices();
   var html = "";
   krakenTrades.forEach(function(t) {
     var side = (t.type||"").toUpperCase();
     var bc   = side==="BUY"?"bg":"br";
     var date = new Date(t.time * 1000).toLocaleString();
-    var pnl  = t.net ? parseFloat(t.net) : null;
+    var pnl  = calcTradePnl(t, avgBuyPrices);
     html += "<tr>";
     html += "<td style='font-size:11px;color:var(--text3)'>"+date+"</td>";
     html += "<td style='font-weight:600'>"+(t.pair||"—")+"</td>";
@@ -1122,6 +1123,39 @@ function renderKrakenTrades() {
   populatePairFilter();
   var countEl = document.getElementById("hist-count");
   if (countEl) countEl.textContent = krakenTrades.length + " trades";
+}
+
+// ─── P&L HELPER ───────────────────────────────────────────────────────────────
+// Kraken's TradesHistory has no "net" field.
+// We compute realized P&L for sell trades as:
+//   pnl = (sell_cost - sell_fee) - (avgBuyPrice * vol_sold)
+// where avgBuyPrice is the VWAP of all buys for that pair.
+function computeAvgBuyPrices() {
+  var map = {};
+  krakenTrades.forEach(function(t) {
+    if (t.type !== "buy") return;
+    var pair = t.pair || "";
+    if (!map[pair]) map[pair] = {cost: 0, vol: 0};
+    map[pair].cost += parseFloat(t.cost) || 0;
+    map[pair].vol  += parseFloat(t.vol)  || 0;
+  });
+  var result = {};
+  Object.keys(map).forEach(function(pair) {
+    var d = map[pair];
+    result[pair] = d.vol > 0 ? d.cost / d.vol : 0;  // $ per unit
+  });
+  return result;
+}
+
+function calcTradePnl(t, avgBuyPrices) {
+  if (!t || t.type !== "sell") return null;
+  var avgBuy = avgBuyPrices[t.pair || ""] || 0;
+  if (!avgBuy) return null;
+  var vol      = parseFloat(t.vol)  || 0;
+  var revenue  = parseFloat(t.cost) || 0;   // USD received (price × vol)
+  var fee      = parseFloat(t.fee)  || 0;
+  var costBasis = avgBuy * vol;
+  return revenue - fee - costBasis;         // positive = profit, negative = loss
 }
 
 // ─── KRAKEN STATS ENGINE ──────────────────────────────────────────────────────
@@ -2462,12 +2496,14 @@ function renderKrakenTradesFiltered(trades) {
     el.innerHTML = "<tr><td colspan='7' style='text-align:center;color:var(--text3);padding:24px'>No trades match the current filters</td></tr>";
     return;
   }
+  // Always compute avg buy prices from the full set so filtered views show correct P&L
+  var avgBuyPrices = computeAvgBuyPrices();
   var html = "";
   trades.forEach(function(t) {
     var side = (t.type || "").toUpperCase();
     var bc   = side === "BUY" ? "bg" : "br";
     var date = new Date(t.time * 1000).toLocaleString();
-    var pnl  = t.net ? parseFloat(t.net) : null;
+    var pnl  = calcTradePnl(t, avgBuyPrices);
     html += "<tr>";
     html += "<td style='font-size:11px;color:var(--text3)'>" + date + "</td>";
     html += "<td style='font-weight:600'>" + (t.pair || "—") + "</td>";
@@ -2496,8 +2532,10 @@ function populatePairFilter() {
 function exportTradesToCSV() {
   var trades = (_histFiltered !== null) ? _histFiltered : krakenTrades;
   if (!trades.length) { showToast("No trades to export"); return; }
+  var avgBuyPrices = computeAvgBuyPrices();
   var rows = [["Date","Pair","Side","Volume","Price (USD)","Cost (USD)","Fee","P&L"]];
   trades.forEach(function(t) {
+    var pnl = calcTradePnl(t, avgBuyPrices);
     rows.push([
       new Date(t.time * 1000).toISOString(),
       t.pair || "",
@@ -2506,7 +2544,7 @@ function exportTradesToCSV() {
       (parseFloat(t.price) || 0).toFixed(2),
       (parseFloat(t.cost)  || 0).toFixed(2),
       (parseFloat(t.fee)   || 0).toFixed(4),
-      t.net ? parseFloat(t.net).toFixed(2) : ""
+      pnl !== null ? pnl.toFixed(2) : ""
     ]);
   });
   var csv = rows.map(function(r) {
