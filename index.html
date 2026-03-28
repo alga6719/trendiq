@@ -255,6 +255,37 @@ button,input,select,textarea{font-family:inherit}
   .price-grid{grid-template-columns:1fr}
   .mc-grid{grid-template-columns:1fr}
 }
+/* ─── SKELETON LOADERS ──────────────────────────────────────────────────────*/
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skel{display:inline-block;border-radius:6px;background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:800px 100%;animation:shimmer 1.4s infinite linear;color:transparent!important;min-width:80px;min-height:1em;pointer-events:none;user-select:none}
+.skel-sm{min-width:50px}.skel-lg{min-width:120px;min-height:1.4em}
+/* ─── LIGHT MODE ────────────────────────────────────────────────────────────*/
+:root.light{--bg:#f4f5f8;--bg2:#ffffff;--bg3:#eef0f5;--bg4:#e2e5ec;--border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);--text:#111827;--text2:#4b5563;--text3:#9ca3af}
+:root.light .ticker{background:#fff}
+:root.light .ticker::before{background:linear-gradient(to right,#fff,transparent)}
+:root.light .ticker::after{background:linear-gradient(to left,#fff,transparent)}
+:root.light .db-bar{background:#fff}
+:root.light .db-sidebar{background:#fff}
+:root.light .db-content{background:var(--bg)}
+:root.light .hnav{background:rgba(244,245,248,0.95)}
+/* ─── MOBILE HAMBURGER + BOTTOM NAV ────────────────────────────────────────*/
+.mob-menu-btn{display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:transparent;cursor:pointer;flex-shrink:0;color:var(--text2)}
+.mob-menu-btn:hover{background:var(--bg3);color:var(--text)}
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40;backdrop-filter:blur(2px)}
+.mob-overlay.open{display:block}
+.db-sidebar.mob-open{display:flex!important;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:45;width:240px;box-shadow:4px 0 24px rgba(0,0,0,0.4)}
+.mob-bnav{display:none;position:fixed;bottom:0;left:0;right:0;height:56px;background:var(--bg2);border-top:1px solid var(--border);z-index:30;flex-direction:row;align-items:center;justify-content:space-around}
+.mob-bnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:1;height:100%;font-size:10px;color:var(--text3);cursor:pointer;border:none;background:transparent}
+.mob-bnav-item.active,.mob-bnav-item:hover{color:var(--purple)}
+.mob-bnav-item svg{width:18px;height:18px}
+@media(max-width:768px){
+  .mob-menu-btn{display:flex}
+  .mob-bnav{display:flex}
+  .db-content{padding-bottom:56px}
+}
+/* ─── THEME TOGGLE BUTTON ───────────────────────────────────────────────────*/
+.theme-btn{width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;transition:all .15s}
+.theme-btn:hover{background:var(--bg3);color:var(--text)}
 </style>
 </head>
 <body>
@@ -343,14 +374,22 @@ button,input,select,textarea{font-family:inherit}
 <div id="page-dashboard" class="page">
   <div class="db-shell">
     <div class="db-bar">
-      <div class="db-logo" onclick="goTo('home')"><div class="db-logo-box"><svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M2 11.5l2.5-3.5 2.5 1.5L10.5 4 13 2" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>Quantum Trading Bot</div>
-      <span class="live-badge">LIVE</span>
-      <button class="db-btn b-live" id="btnLive"    onclick="setMode('live')">Live Trade</button>
-      <button class="db-btn"        id="btnSim"     onclick="setMode('sim')">Sim Trade</button>
-      <button class="db-btn"        id="btnRefresh" onclick="refreshAll()">Refresh</button>
-      <button class="db-btn b-stop" id="btnStop"    onclick="setMode('idle')">Stop Bot</button>
-      <div class="db-user"><div class="db-avatar">AG</div>alexgaray5<span class="free-badge">FREE</span></div>
+      <button class="mob-menu-btn" onclick="toggleMobSidebar()" title="Menu">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      <div class="db-logo" onclick="goTo('home')"><div class="db-logo-box"><svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M2 11.5l2.5-3.5 2.5 1.5L10.5 4 13 2" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span style="display:none" class="db-logo-txt">TrendIQ</span></div>
+      <span class="live-badge" id="modeBadge">IDLE</span>
+      <button class="db-btn" id="btnLive" onclick="setMode('live')">Live Trade</button>
+      <button class="db-btn" id="btnSim"  onclick="setMode('sim')">Sim Trade</button>
+      <button class="db-btn" id="btnRefresh" onclick="refreshAll()">Refresh</button>
+      <button class="db-btn" id="btnStop" onclick="setMode('idle')">Stop Bot</button>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" id="themeIcon"><path d="M8 2V1M8 15v-1M2 8H1M15 8h-1M3.5 3.5l-.7-.7M13.2 12.8l-.7-.7M12.8 3.5l.7-.7M3.2 12.8l.7-.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+      <div class="db-user"><div class="db-avatar">AG</div><span class="db-uname">alexgaray5</span><span class="free-badge">FREE</span></div>
     </div>
+    <!-- Mobile sidebar overlay -->
+    <div class="mob-overlay" id="mobOverlay" onclick="toggleMobSidebar()"></div>
     <div class="db-body">
       <div class="db-sidebar">
         <div id="snav-dashboard" class="nav-item active" onclick="showDash('dashboard',this)"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3" opacity=".5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3" opacity=".5"/></svg>Dashboard</div>
@@ -370,9 +409,9 @@ button,input,select,textarea{font-family:inherit}
       <div class="db-content">
         <div id="dtab-dashboard" class="db-tab active">
           <div class="mc-grid">
-            <div class="mc"><div class="mc-top"><div><div class="mc-label">BTC Price</div><div class="mc-live"><span class="mc-dot"></span>CoinGecko Live</div></div></div><div class="mc-val" id="d-btc-price">…</div><div class="mc-delta" id="d-btc-chg"></div></div>
-            <div class="mc"><div class="mc-top"><div class="mc-label">ETH Price</div></div><div class="mc-val" id="d-eth-price">…</div><div class="mc-delta" id="d-eth-chg"></div></div>
-            <div class="mc"><div class="mc-top"><div class="mc-label">SOL Price</div></div><div class="mc-val" id="d-sol-price">…</div><div class="mc-delta" id="d-sol-chg"></div></div>
+            <div class="mc"><div class="mc-top"><div><div class="mc-label">BTC Price</div><div class="mc-live"><span class="mc-dot"></span>CoinGecko Live</div></div></div><div class="mc-val skel skel-lg" id="d-btc-price">…</div><div class="mc-delta" id="d-btc-chg"></div></div>
+            <div class="mc"><div class="mc-top"><div class="mc-label">ETH Price</div></div><div class="mc-val skel skel-lg" id="d-eth-price">…</div><div class="mc-delta" id="d-eth-chg"></div></div>
+            <div class="mc"><div class="mc-top"><div class="mc-label">SOL Price</div></div><div class="mc-val skel skel-lg" id="d-sol-price">…</div><div class="mc-delta" id="d-sol-chg"></div></div>
             <div class="mc"><div class="mc-top"><div class="mc-label">Win Rate</div></div><div class="mc-val">68%</div><div class="mc-sub">100 total trades</div></div>
           </div>
           <div class="g2" style="margin-bottom:16px">
@@ -586,6 +625,24 @@ button,input,select,textarea{font-family:inherit}
         </div>
       </div>
     </div>
+    <!-- Mobile bottom navigation -->
+    <nav class="mob-bnav" id="mobBnav">
+      <button class="mob-bnav-item active" onclick="showDash('dashboard',document.getElementById('snav-dashboard'));updateMobBnav(this)">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3" opacity=".5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.3" stroke="currentColor" stroke-width="1.3" opacity=".5"/></svg>Home
+      </button>
+      <button class="mob-bnav-item" onclick="showDash('portfolio',document.getElementById('snav-portfolio'));updateMobBnav(this)">
+        <svg viewBox="0 0 16 16" fill="none"><polyline points="1.5,12 4.5,8 7.5,10 11,5 14.5,3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Portfolio
+      </button>
+      <button class="mob-bnav-item" onclick="showDash('ml',document.getElementById('snav-ml'));updateMobBnav(this)">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2.5" fill="currentColor" opacity=".3"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Signals
+      </button>
+      <button class="mob-bnav-item" onclick="showDash('askai',document.getElementById('snav-askai'));updateMobBnav(this)">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="9" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 7h6M5 9.5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Ask AI
+      </button>
+      <button class="mob-bnav-item" onclick="showDash('settings',document.getElementById('snav-settings'));updateMobBnav(this)">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Settings
+      </button>
+    </nav>
   </div>
 </div>
 
@@ -956,6 +1013,43 @@ function refreshAll() {
   fetchKraken();
 }
 
+// ─── THEME TOGGLE ─────────────────────────────────────────────────────────────
+var _darkMode = true;
+function toggleTheme() {
+  _darkMode = !_darkMode;
+  var root = document.documentElement;
+  if (_darkMode) {
+    root.classList.remove("light");
+    document.getElementById("themeIcon").innerHTML = '<path d="M8 2V1M8 15v-1M2 8H1M15 8h-1M3.5 3.5l-.7-.7M13.2 12.8l-.7-.7M12.8 3.5l.7-.7M3.2 12.8l.7-.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/>';
+  } else {
+    root.classList.add("light");
+    document.getElementById("themeIcon").innerHTML = '<path d="M13 8A5 5 0 0 1 5.5 2.5c-.4 0-.7.05-1.1.1A6.5 6.5 0 1 0 13.4 9.1 5 5 0 0 1 13 8z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>';
+  }
+  showToast(_darkMode ? "🌙 Dark mode" : "☀️ Light mode");
+}
+
+// ─── MOBILE SIDEBAR ───────────────────────────────────────────────────────────
+function toggleMobSidebar() {
+  var sidebar = document.querySelector(".db-sidebar");
+  var overlay = document.getElementById("mobOverlay");
+  if (!sidebar || !overlay) return;
+  var open = sidebar.classList.toggle("mob-open");
+  overlay.classList.toggle("open", open);
+  document.body.style.overflow = open ? "hidden" : "";
+}
+function closeMobSidebar() {
+  var sidebar = document.querySelector(".db-sidebar");
+  var overlay = document.getElementById("mobOverlay");
+  if (sidebar) sidebar.classList.remove("mob-open");
+  if (overlay) overlay.classList.remove("open");
+  document.body.style.overflow = "";
+}
+function updateMobBnav(el) {
+  var items = document.querySelectorAll(".mob-bnav-item");
+  items.forEach(function(i){ i.classList.remove("active"); });
+  if (el) el.classList.add("active");
+}
+
 // ─── COINGECKO FETCH (via /api/prices CDN proxy, falls back to direct) ───────
 function fetchPrices(force) {
   if (!force && Date.now() - lastPricesFetch < 30000) return;  // dedupe rapid tab switches
@@ -1008,7 +1102,7 @@ function updateDashPrices() {
     var d = liveData[pairs[i].sym]; if (!d) continue;
     var pe = document.getElementById("d-" + pairs[i].id + "-price");
     var ce = document.getElementById("d-" + pairs[i].id + "-chg");
-    if (pe) pe.textContent = "$" + fP(d.price);
+    if (pe) { pe.textContent = "$" + fP(d.price); pe.classList.remove("skel","skel-lg"); }
     if (ce) { ce.textContent = fPct(d.chg24); ce.className = "mc-delta " + (d.chg24 >= 0 ? "up" : "dn"); }
   }
   var btc = liveData["BTC/USD"], eth = liveData["ETH/USD"], sol = liveData["SOL/USD"];
@@ -1147,6 +1241,7 @@ function scrollFeat() {
   setTimeout(function(){ var el=document.getElementById("feat-anchor"); if(el) el.scrollIntoView({behavior:"smooth"}); },100);
 }
 function showDash(tab,el) {
+  closeMobSidebar();  // close mobile sidebar on nav
   var tabs=document.querySelectorAll(".db-tab"); for(var i=0;i<tabs.length;i++) tabs[i].classList.remove("active");
   var navs=document.querySelectorAll(".nav-item"); for(var i=0;i<navs.length;i++) navs[i].classList.remove("active");
   var t=document.getElementById("dtab-"+tab); if(t) t.classList.add("active");
