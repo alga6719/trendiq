@@ -1027,11 +1027,13 @@ button,input,select,textarea{font-family:inherit}
     <h1 style="font-size:38px;font-weight:800;letter-spacing:-1.5px;margin-bottom:10px">Get in touch</h1>
     <p style="font-size:15px;color:var(--text2);margin-bottom:32px">Questions, feedback, or partnership inquiries.</p>
     <div class="card">
-      <input class="fld" type="text" placeholder="Your name">
-      <input class="fld" type="email" placeholder="Email address">
-      <textarea class="fld" rows="5" placeholder="Your message…" style="resize:vertical;line-height:1.6"></textarea>
-      <button class="btn-purple" style="padding:9px 22px">Send Message</button>
-      <div style="font-size:12px;color:var(--text3);margin-top:12px">Or email <a href="mailto:alga6719@gmail.com">alga6719@gmail.com</a></div>
+      <input class="fld" id="contact-name" type="text" placeholder="Your name" style="margin-bottom:10px">
+      <input class="fld" id="contact-email" type="email" placeholder="Email address" style="margin-bottom:10px">
+      <textarea class="fld" id="contact-msg" rows="5" placeholder="Your message…" style="resize:vertical;line-height:1.6;margin-bottom:14px"></textarea>
+      <div id="contact-err" style="font-size:12px;color:var(--red);margin-bottom:8px;display:none"></div>
+      <div id="contact-ok" style="font-size:13px;color:var(--green);margin-bottom:10px;display:none">✅ Message sent! We'll be in touch soon.</div>
+      <button class="btn-purple" style="padding:9px 22px" onclick="sendContactMessage()">Send Message</button>
+      <div style="font-size:12px;color:var(--text3);margin-top:12px">Or email <a href="mailto:alga6719@gmail.com" style="color:var(--purple)">alga6719@gmail.com</a></div>
     </div>
   </div>
 </div>
@@ -2128,6 +2130,38 @@ function goTo(pg) {
 function scrollFeat() {
   goTo("home");
   setTimeout(function(){ var el=document.getElementById("feat-anchor"); if(el) el.scrollIntoView({behavior:"smooth"}); },100);
+}
+
+function sendContactMessage() {
+  var name  = (document.getElementById("contact-name")  || {}).value || "";
+  var email = (document.getElementById("contact-email") || {}).value || "";
+  var msg   = (document.getElementById("contact-msg")   || {}).value || "";
+  var errEl = document.getElementById("contact-err");
+  var okEl  = document.getElementById("contact-ok");
+
+  // Validate
+  if (!name.trim()) {
+    errEl.textContent = "Please enter your name."; errEl.style.display = "block"; return;
+  }
+  if (!email.trim() || !email.includes("@")) {
+    errEl.textContent = "Please enter a valid email address."; errEl.style.display = "block"; return;
+  }
+  if (!msg.trim() || msg.trim().length < 5) {
+    errEl.textContent = "Please enter a message."; errEl.style.display = "block"; return;
+  }
+  errEl.style.display = "none";
+
+  // Open mailto — works without a backend, opens default mail client
+  var subject = encodeURIComponent("TrendIQ Contact: " + name);
+  var body    = encodeURIComponent("Name: " + name + "\nEmail: " + email + "\n\nMessage:\n" + msg);
+  window.location.href = "mailto:alga6719@gmail.com?subject=" + subject + "&body=" + body;
+
+  // Show success
+  okEl.style.display = "block";
+  document.getElementById("contact-name").value  = "";
+  document.getElementById("contact-email").value = "";
+  document.getElementById("contact-msg").value   = "";
+  setTimeout(function() { okEl.style.display = "none"; }, 5000);
 }
 function showDash(tab,el) {
   closeMobSidebar();  // close mobile sidebar on nav
