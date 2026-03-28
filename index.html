@@ -492,14 +492,83 @@ button,input,select,textarea{font-family:inherit}
           </div>
         </div>
         <div id="dtab-strategies" class="db-tab">
-          <div class="card-h" style="margin-bottom:20px">Strategies</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div class="card-h">Strategies</div>
+            <button class="btn-purple" style="font-size:12px;padding:7px 14px" onclick="openStrategyEditor(-1)">+ New Strategy</button>
+          </div>
+          <!-- Inline Strategy Editor -->
+          <div id="strat-editor" style="display:none;margin-bottom:16px">
+            <div class="card">
+              <div style="font-size:14px;font-weight:600;margin-bottom:16px" id="strat-editor-title">New Strategy</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">STRATEGY NAME</label>
+                  <input class="fld" id="se-name" placeholder="e.g. BTC Momentum Play" style="margin-bottom:0">
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">PAIR</label>
+                  <select class="fld" id="se-pair" style="margin-bottom:0;background:var(--bg3);color:var(--text2)">
+                    <option value="BTC/USD">BTC/USD</option>
+                    <option value="ETH/USD">ETH/USD</option>
+                    <option value="SOL/USD">SOL/USD</option>
+                    <option value="AVAX/USD">AVAX/USD</option>
+                    <option value="BNB/USD">BNB/USD</option>
+                    <option value="ARB/USD">ARB/USD</option>
+                    <option value="OP/USD">OP/USD</option>
+                    <option value="WIF/USD">WIF/USD</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">BUY WHEN SCORE ≥ <span id="se-buy-val" style="color:var(--green)">72</span></label>
+                  <input type="range" id="se-buy" min="40" max="95" value="72" style="width:100%;accent-color:var(--green)" oninput="document.getElementById('se-buy-val').textContent=this.value">
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">SELL WHEN SCORE ≤ <span id="se-sell-val" style="color:var(--red)">35</span></label>
+                  <input type="range" id="se-sell" min="5" max="60" value="35" style="width:100%;accent-color:var(--red)" oninput="document.getElementById('se-sell-val').textContent=this.value">
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">TRADE AMOUNT (USD)</label>
+                  <input class="fld" id="se-amount" type="number" value="100" min="1" placeholder="100" style="margin-bottom:0">
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">MODE</label>
+                  <select class="fld" id="se-mode" style="margin-bottom:0;background:var(--bg3);color:var(--text2)">
+                    <option value="both">Buy &amp; Sell</option>
+                    <option value="buy">Buy Only</option>
+                    <option value="sell">Sell Only</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">STOP LOSS %</label>
+                  <input class="fld" id="se-stoploss" type="number" value="-5" max="0" placeholder="-5" style="margin-bottom:0">
+                </div>
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">TAKE PROFIT %</label>
+                  <input class="fld" id="se-takeprofit" type="number" value="12" min="1" placeholder="12" style="margin-bottom:0">
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="btn-purple" style="font-size:12px;padding:7px 18px" onclick="saveStrategy()">Save Strategy</button>
+                <button class="db-btn" style="font-size:12px;padding:7px 14px" onclick="closeStrategyEditor()">Cancel</button>
+              </div>
+              <input type="hidden" id="se-idx" value="-1">
+            </div>
+          </div>
+          <!-- Saved Strategies List -->
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-h" style="margin-bottom:0">My Strategies</div>
+              <div style="font-size:11px;color:var(--text3)" id="strat-count"></div>
+            </div>
+            <div id="strat-list"><div style="color:var(--text3);font-size:13px;padding:8px 0">No strategies yet — click <strong style="color:var(--text2)">+ New Strategy</strong> to create one.</div></div>
+          </div>
+          <!-- Kraken trade breakdown (real data) -->
           <div class="g2w">
             <div class="card">
               <div class="card-h" style="margin-bottom:14px" id="strat-list-title">Trade Activity by Pair</div>
               <div id="strat-pairs-list">
                 <div style="color:var(--text3);font-size:13px;padding:8px 0">Connect Kraken to see your real trade breakdown by pair.</div>
               </div>
-              <div style="margin-top:16px"><button class="btn-purple" style="font-size:12px;padding:7px 14px">+ New Strategy</button></div>
             </div>
             <div class="card"><div class="card-h" style="margin-bottom:14px" id="strat-chart-title">Win Rate by Pair</div><div style="position:relative;height:180px"><canvas id="stratChart"></canvas></div></div>
           </div>
@@ -581,10 +650,20 @@ button,input,select,textarea{font-family:inherit}
           </div>
         </div>
         <div id="dtab-history" class="db-tab">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <div class="card-h">Trade History · Kraken Live</div>
             <button class="db-btn" onclick="fetchKraken()" style="font-size:11px;padding:4px 10px">Refresh</button>
           </div>
+          <!-- Filter bar -->
+          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+            <input class="srch" type="text" id="hist-search" placeholder="Search pair or side…" style="flex:1;min-width:140px;width:auto" oninput="applyHistoryFilters()">
+            <select class="fld" id="hist-pair" style="flex:1;min-width:120px;margin-bottom:0;background:var(--bg3);color:var(--text2)" onchange="applyHistoryFilters()"><option value="">All Pairs</option></select>
+            <input class="fld" type="date" id="hist-from" style="flex:1;min-width:118px;margin-bottom:0;background:var(--bg3);color:var(--text2)" onchange="applyHistoryFilters()" title="From date">
+            <input class="fld" type="date" id="hist-to"   style="flex:1;min-width:118px;margin-bottom:0;background:var(--bg3);color:var(--text2)" onchange="applyHistoryFilters()" title="To date">
+            <button class="db-btn" onclick="clearHistoryFilters()" style="flex-shrink:0">Clear</button>
+            <button class="db-btn" onclick="exportTradesToCSV()" style="flex-shrink:0;color:var(--green);border-color:rgba(34,197,94,0.3)">⬇ CSV</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px" id="hist-count"></div>
           <div class="card">
             <table class="tbl"><thead><tr><th>Date</th><th>Pair</th><th>Side</th><th>Volume</th><th>Price</th><th>Cost</th><th>P&amp;L</th></tr></thead>
             <tbody id="kraken-trades"><tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px">Loading from Kraken…</td></tr></tbody></table>
@@ -664,6 +743,28 @@ button,input,select,textarea{font-family:inherit}
                 <label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Display Name</label><input class="fld" value="alexgaray5" style="margin-bottom:10px">
                 <label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Email</label><input class="fld" value="alga6719@gmail.com" type="email" style="margin-bottom:10px">
                 <button class="btn-purple" style="font-size:12px;padding:7px 16px">Save Changes</button>
+              </div>
+              <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+                <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text)">🔔 Price Alerts</div>
+                <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+                  <select class="fld" id="alert-sym" style="flex:1;min-width:90px;margin-bottom:0;background:var(--bg3);color:var(--text2)">
+                    <option value="BTC/USD">BTC</option>
+                    <option value="ETH/USD">ETH</option>
+                    <option value="SOL/USD">SOL</option>
+                    <option value="AVAX/USD">AVAX</option>
+                    <option value="BNB/USD">BNB</option>
+                    <option value="ARB/USD">ARB</option>
+                    <option value="OP/USD">OP</option>
+                  </select>
+                  <select class="fld" id="alert-dir" style="flex:1;min-width:90px;margin-bottom:0;background:var(--bg3);color:var(--text2)">
+                    <option value="above">↑ Above</option>
+                    <option value="below">↓ Below</option>
+                  </select>
+                  <input class="fld" type="number" id="alert-price" placeholder="Target $" style="flex:1;min-width:100px;margin-bottom:0">
+                  <button class="btn-purple" style="font-size:12px;padding:7px 12px;flex-shrink:0" onclick="addPriceAlert()">+ Add</button>
+                </div>
+                <div id="alerts-list" style="display:flex;flex-direction:column;gap:6px"><div style="font-size:12px;color:var(--text3)">No alerts set.</div></div>
+                <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.6">Alerts fire a toast + browser notification when price crosses your target. Checked on every price update.</div>
               </div>
             </div>
           </div>
@@ -953,6 +1054,10 @@ function renderKrakenTrades() {
   // After rendering, compute stats and update all stat displays
   var stats = computeKrakenStats();
   if (stats) updateStatDisplays(stats);
+  // Populate pair filter dropdown + show count
+  populatePairFilter();
+  var countEl = document.getElementById("hist-count");
+  if (countEl) countEl.textContent = krakenTrades.length + " trades";
 }
 
 // ─── KRAKEN STATS ENGINE ──────────────────────────────────────────────────────
@@ -1286,6 +1391,9 @@ function initSettingsTab() {
   if (secEl && s) secEl.value = s;
   // Update badge
   updateKrakenBadge();
+  // Load and render price alerts
+  loadPriceAlerts();
+  renderAlertsList();
 }
 
 function updateKrakenBadge() {
@@ -1631,9 +1739,9 @@ function showDash(tab,el) {
   setTimeout(function(){
     if(tab==="dashboard")  { initPerfChart(); initSentimentGauge(); }
     if(tab==="portfolio")  { initPortfolioChart(); fetchKraken(); }
-    if(tab==="history")    { fetchKraken(); }
+    if(tab==="history")    { fetchKraken(); if(krakenTrades.length){ populatePairFilter(); var ce=document.getElementById("hist-count");if(ce)ce.textContent=krakenTrades.length+" trades"; } }
     if(tab==="settings")   { initSettingsTab(); }
-    if(tab==="strategies") { initStratChart(); }
+    if(tab==="strategies") { initStratChart(); renderStrategiesList(); }
     if(tab==="sniper")     { initBotChart(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
@@ -2116,11 +2224,14 @@ setTimeout(initPerfChart,120);
 setTimeout(initSentimentGauge,130);
 setTimeout(function(){
   fetchPrices(true);
-  setInterval(function(){ fetchPrices(true); }, 60000);
+  setInterval(function(){ fetchPrices(true); }, 60000);  // fallback poll for non-WS coins
   setInterval(fetchFearGreed, 600000);  // refresh fear/greed every 10 min
+  initBinanceWS();  // connect Binance real-time WebSocket (replaces polling for major pairs)
 },300);
 setTimeout(fetchKraken, 800);  // load Kraken balance on page open (after prices start)
 updateKrakenBadge();           // reflect saved-key state in Settings badge immediately
+loadPriceAlerts();             // restore saved price alerts from localStorage
+loadStrategies();              // restore saved strategies from localStorage
 
 // ─── SNIPE MODAL ─────────────────────────────────────────────────────────────
 var KRAKEN_PAIRS = {
@@ -2237,6 +2348,401 @@ function confirmSnipe() {
     }
   })
   .catch(function(e){ btn.disabled = false; st.className = "modal-status show err"; st.textContent = "Request failed: " + e.message; });
+}
+
+// ─── TRADE HISTORY FILTERS ────────────────────────────────────────────────────
+var _histFiltered = null;  // null = show all
+
+function applyHistoryFilters() {
+  var search  = (document.getElementById("hist-search") ? document.getElementById("hist-search").value : "").trim().toLowerCase();
+  var pair    = (document.getElementById("hist-pair")   ? document.getElementById("hist-pair").value   : "");
+  var fromVal = document.getElementById("hist-from") ? document.getElementById("hist-from").value : "";
+  var toVal   = document.getElementById("hist-to")   ? document.getElementById("hist-to").value   : "";
+  var fromTs  = fromVal ? new Date(fromVal).getTime() / 1000 : 0;
+  var toTs    = toVal   ? (new Date(toVal).getTime()   / 1000 + 86399) : Infinity;
+
+  _histFiltered = krakenTrades.filter(function(t) {
+    if (pair && t.pair !== pair) return false;
+    if (t.time < fromTs || t.time > toTs) return false;
+    if (search) {
+      var hay = ((t.pair || "") + " " + (t.type || "")).toLowerCase();
+      if (hay.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+
+  renderKrakenTradesFiltered(_histFiltered);
+  var countEl = document.getElementById("hist-count");
+  if (countEl) {
+    countEl.textContent = _histFiltered.length < krakenTrades.length
+      ? "Showing " + _histFiltered.length + " of " + krakenTrades.length + " trades"
+      : krakenTrades.length + " trades";
+  }
+}
+
+function clearHistoryFilters() {
+  var s = document.getElementById("hist-search"); if (s) s.value = "";
+  var p = document.getElementById("hist-pair");   if (p) p.value = "";
+  var f = document.getElementById("hist-from");   if (f) f.value = "";
+  var t = document.getElementById("hist-to");     if (t) t.value = "";
+  _histFiltered = null;
+  renderKrakenTrades();
+  var countEl = document.getElementById("hist-count");
+  if (countEl) countEl.textContent = krakenTrades.length + " trades";
+}
+
+function renderKrakenTradesFiltered(trades) {
+  var el = document.getElementById("kraken-trades"); if (!el) return;
+  if (!trades || !trades.length) {
+    el.innerHTML = "<tr><td colspan='7' style='text-align:center;color:var(--text3);padding:24px'>No trades match the current filters</td></tr>";
+    return;
+  }
+  var html = "";
+  trades.forEach(function(t) {
+    var side = (t.type || "").toUpperCase();
+    var bc   = side === "BUY" ? "bg" : "br";
+    var date = new Date(t.time * 1000).toLocaleString();
+    var pnl  = t.net ? parseFloat(t.net) : null;
+    html += "<tr>";
+    html += "<td style='font-size:11px;color:var(--text3)'>" + date + "</td>";
+    html += "<td style='font-weight:600'>" + (t.pair || "—") + "</td>";
+    html += "<td><span class='badge " + bc + "'>" + side + "</span></td>";
+    html += "<td class='mono'>" + (parseFloat(t.vol) || 0).toFixed(6) + "</td>";
+    html += "<td class='mono'>$" + (parseFloat(t.price) || 0).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}) + "</td>";
+    html += "<td class='mono'>$" + (parseFloat(t.cost)  || 0).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}) + "</td>";
+    html += "<td class='" + (pnl !== null ? (pnl >= 0 ? "up" : "dn") : "") + "' style='font-family:\"JetBrains Mono\",monospace;font-weight:600'>" + (pnl !== null ? (pnl >= 0 ? "+" : "") + pnl.toFixed(2) : "—") + "</td>";
+    html += "</tr>";
+  });
+  el.innerHTML = html;
+}
+
+function populatePairFilter() {
+  var sel = document.getElementById("hist-pair"); if (!sel) return;
+  var pairs = {};
+  krakenTrades.forEach(function(t) { if (t.pair) pairs[t.pair] = true; });
+  var opts = '<option value="">All Pairs</option>';
+  Object.keys(pairs).sort().forEach(function(p) { opts += '<option value="' + p + '">' + p + '</option>'; });
+  var cur = sel.value;  // preserve current selection if any
+  sel.innerHTML = opts;
+  if (cur && pairs[cur]) sel.value = cur;
+}
+
+// ─── EXPORT TO CSV ────────────────────────────────────────────────────────────
+function exportTradesToCSV() {
+  var trades = (_histFiltered !== null) ? _histFiltered : krakenTrades;
+  if (!trades.length) { showToast("No trades to export"); return; }
+  var rows = [["Date","Pair","Side","Volume","Price (USD)","Cost (USD)","Fee","P&L"]];
+  trades.forEach(function(t) {
+    rows.push([
+      new Date(t.time * 1000).toISOString(),
+      t.pair || "",
+      (t.type || "").toUpperCase(),
+      (parseFloat(t.vol)   || 0).toFixed(8),
+      (parseFloat(t.price) || 0).toFixed(2),
+      (parseFloat(t.cost)  || 0).toFixed(2),
+      (parseFloat(t.fee)   || 0).toFixed(4),
+      t.net ? parseFloat(t.net).toFixed(2) : ""
+    ]);
+  });
+  var csv = rows.map(function(r) {
+    return r.map(function(c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(",");
+  }).join("\n");
+  var blob = new Blob([csv], {type: "text/csv"});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement("a");
+  a.href = url;
+  a.download = "trendiq-trades-" + new Date().toISOString().slice(0, 10) + ".csv";
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast("✅ CSV exported — " + trades.length + " trades");
+}
+
+// ─── BINANCE WEBSOCKET PRICES ─────────────────────────────────────────────────
+var _ws = null, _wsReconnectTimer = null, _wsUpdatePending = false;
+var WS_SYM_MAP = {
+  "BTCUSDT":"BTC/USD","ETHUSDT":"ETH/USD","SOLUSDT":"SOL/USD",
+  "AVAXUSDT":"AVAX/USD","BNBUSDT":"BNB/USD","ARBUSDT":"ARB/USD",
+  "OPUSDT":"OP/USD","WIFUSDT":"WIF/USD"
+};
+
+function initBinanceWS() {
+  if (_ws && (_ws.readyState === 0 || _ws.readyState === 1)) return;
+  var streams = Object.keys(WS_SYM_MAP).map(function(s){ return s.toLowerCase() + "@ticker"; }).join("/");
+  try {
+    _ws = new WebSocket("wss://stream.binance.com:9443/stream?streams=" + streams);
+  } catch(e) { console.warn("[WS] WebSocket init failed:", e); return; }
+
+  _ws.onmessage = function(evt) {
+    try {
+      var msg  = JSON.parse(evt.data);
+      var d    = msg.data || msg;
+      var sym  = WS_SYM_MAP[d.s];
+      if (!sym) return;
+      var price = parseFloat(d.c);
+      var chg24 = parseFloat(d.P);
+      var vol   = parseFloat(d.q);  // quote volume in USDT ≈ USD
+      if (!price) return;
+      liveData[sym] = {price: price, chg24: chg24, vol: vol};
+      // Debounced UI update — batch rapid ticks into one render per 500ms
+      if (!_wsUpdatePending) {
+        _wsUpdatePending = true;
+        setTimeout(function() {
+          _wsUpdatePending = false;
+          renderTicker();
+          updateDashPrices();
+          renderWatchlist();
+          checkPriceAlerts();
+          if (Object.keys(krakenBalance).length) renderKrakenBalance();
+        }, 500);
+      }
+    } catch(e) { /* ignore parse errors */ }
+  };
+
+  _ws.onopen = function() {
+    console.log("[WS] Binance price stream connected ✓");
+  };
+
+  _ws.onclose = function(evt) {
+    if (evt.wasClean) return;  // intentional close — don't reconnect
+    console.warn("[WS] Binance stream dropped — reconnecting in 5s");
+    clearTimeout(_wsReconnectTimer);
+    _wsReconnectTimer = setTimeout(initBinanceWS, 5000);
+  };
+
+  _ws.onerror = function() { try { _ws.close(); } catch(e){} };
+}
+
+// ─── PRICE ALERTS ─────────────────────────────────────────────────────────────
+var priceAlerts = [];
+
+function loadPriceAlerts() {
+  try { priceAlerts = JSON.parse(localStorage.getItem("tiq_alerts") || "[]"); } catch(e) { priceAlerts = []; }
+}
+function savePriceAlerts() {
+  localStorage.setItem("tiq_alerts", JSON.stringify(priceAlerts));
+}
+
+function addPriceAlert() {
+  var symEl   = document.getElementById("alert-sym");
+  var dirEl   = document.getElementById("alert-dir");
+  var priceEl = document.getElementById("alert-price");
+  var sym     = symEl   ? symEl.value   : "BTC/USD";
+  var dir     = dirEl   ? dirEl.value   : "above";
+  var target  = priceEl ? parseFloat(priceEl.value) : 0;
+  if (!target || target <= 0) { showToast("⚠ Enter a valid target price"); return; }
+  priceAlerts.push({sym: sym, dir: dir, target: target, triggered: false});
+  savePriceAlerts();
+  renderAlertsList();
+  if (priceEl) priceEl.value = "";
+  showToast("🔔 Alert set: " + sym.replace("/USD","") + " " + (dir==="above"?"↑":"↓") + " $" + target.toLocaleString("en-US",{maximumFractionDigits:2}));
+  // Request browser notification permission on first alert
+  if (priceAlerts.length === 1 && typeof Notification !== "undefined" && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function removePriceAlert(idx) {
+  priceAlerts.splice(idx, 1);
+  savePriceAlerts();
+  renderAlertsList();
+}
+
+function renderAlertsList() {
+  var el = document.getElementById("alerts-list"); if (!el) return;
+  if (!priceAlerts.length) {
+    el.innerHTML = "<div style='font-size:12px;color:var(--text3)'>No alerts set.</div>";
+    return;
+  }
+  var html = "";
+  priceAlerts.forEach(function(a, idx) {
+    var cur    = liveData[a.sym] ? "$" + fP(liveData[a.sym].price) : "—";
+    var dimmed = a.triggered ? ";opacity:0.55" : "";
+    html += "<div style='display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:7px;background:var(--bg3);border:1px solid var(--border);gap:8px" + dimmed + "'>";
+    html += "<div style='font-size:12px;flex:1'>";
+    html += "<span style='font-weight:600'>" + a.sym.replace("/USD","") + "</span> ";
+    html += "<span style='color:var(--text3)'>" + (a.dir === "above" ? "↑ above" : "↓ below") + "</span> ";
+    html += "<span style='font-family:\"JetBrains Mono\",monospace;font-weight:600'>$" + a.target.toLocaleString("en-US",{maximumFractionDigits:2}) + "</span>";
+    html += " <span style='font-size:11px;color:var(--text3)'>· now " + cur + "</span>";
+    if (a.triggered) html += " <span style='color:var(--green);font-size:11px'>✓ hit</span>";
+    html += "</div>";
+    html += "<button onclick='removePriceAlert(" + idx + ")' style='background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;line-height:1'>×</button>";
+    html += "</div>";
+  });
+  el.innerHTML = html;
+}
+
+// ─── STRATEGY MANAGER ────────────────────────────────────────────────────────
+var _strategies = [];
+
+function loadStrategies() {
+  try { _strategies = JSON.parse(localStorage.getItem("tiq_strategies") || "[]"); } catch(e) { _strategies = []; }
+}
+function saveStrategies() {
+  localStorage.setItem("tiq_strategies", JSON.stringify(_strategies));
+}
+
+function openStrategyEditor(idx) {
+  loadStrategies();
+  var ed = document.getElementById("strat-editor"); if (!ed) return;
+  var title = document.getElementById("strat-editor-title");
+  var idxEl = document.getElementById("se-idx");
+
+  if (idx >= 0 && _strategies[idx]) {
+    // Edit existing
+    var s = _strategies[idx];
+    document.getElementById("se-name").value    = s.name;
+    document.getElementById("se-pair").value    = s.pair;
+    document.getElementById("se-buy").value     = s.buyScore;
+    document.getElementById("se-buy-val").textContent = s.buyScore;
+    document.getElementById("se-sell").value    = s.sellScore;
+    document.getElementById("se-sell-val").textContent = s.sellScore;
+    document.getElementById("se-amount").value  = s.amount;
+    document.getElementById("se-mode").value    = s.mode;
+    document.getElementById("se-stoploss").value    = s.stopLoss;
+    document.getElementById("se-takeprofit").value  = s.takeProfit;
+    if (title) title.textContent = "Edit Strategy";
+    if (idxEl) idxEl.value = idx;
+  } else {
+    // New strategy — reset form
+    document.getElementById("se-name").value    = "";
+    document.getElementById("se-pair").value    = "BTC/USD";
+    document.getElementById("se-buy").value     = "72";
+    document.getElementById("se-buy-val").textContent = "72";
+    document.getElementById("se-sell").value    = "35";
+    document.getElementById("se-sell-val").textContent = "35";
+    document.getElementById("se-amount").value  = "100";
+    document.getElementById("se-mode").value    = "both";
+    document.getElementById("se-stoploss").value    = "-5";
+    document.getElementById("se-takeprofit").value  = "12";
+    if (title) title.textContent = "New Strategy";
+    if (idxEl) idxEl.value = -1;
+  }
+
+  ed.style.display = "block";
+  ed.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+function closeStrategyEditor() {
+  var ed = document.getElementById("strat-editor"); if (ed) ed.style.display = "none";
+}
+
+function saveStrategy() {
+  var name  = (document.getElementById("se-name")?.value || "").trim();
+  if (!name) { showToast("⚠ Enter a strategy name"); document.getElementById("se-name").focus(); return; }
+  var s = {
+    name:       name,
+    pair:       document.getElementById("se-pair").value,
+    buyScore:   parseInt(document.getElementById("se-buy").value,  10),
+    sellScore:  parseInt(document.getElementById("se-sell").value, 10),
+    amount:     parseFloat(document.getElementById("se-amount").value) || 100,
+    mode:       document.getElementById("se-mode").value,
+    stopLoss:   parseFloat(document.getElementById("se-stoploss").value)   || -5,
+    takeProfit: parseFloat(document.getElementById("se-takeprofit").value) || 12,
+    enabled:    true,
+    created:    Date.now()
+  };
+  loadStrategies();
+  var idxEl = document.getElementById("se-idx");
+  var idx   = idxEl ? parseInt(idxEl.value, 10) : -1;
+  if (idx >= 0 && _strategies[idx]) {
+    s.enabled  = _strategies[idx].enabled;
+    s.created  = _strategies[idx].created;
+    _strategies[idx] = s;
+    showToast("✏️ Strategy updated: " + name);
+  } else {
+    _strategies.push(s);
+    showToast("✅ Strategy saved: " + name);
+  }
+  saveStrategies();
+  closeStrategyEditor();
+  renderStrategiesList();
+}
+
+function deleteStrategy(idx) {
+  loadStrategies();
+  if (!_strategies[idx]) return;
+  var name = _strategies[idx].name;
+  _strategies.splice(idx, 1);
+  saveStrategies();
+  renderStrategiesList();
+  showToast("🗑 Deleted: " + name);
+}
+
+function toggleStrategy(idx) {
+  loadStrategies();
+  if (!_strategies[idx]) return;
+  _strategies[idx].enabled = !_strategies[idx].enabled;
+  saveStrategies();
+  renderStrategiesList();
+  showToast((_strategies[idx].enabled ? "✅ Enabled: " : "⏸ Paused: ") + _strategies[idx].name);
+}
+
+function renderStrategiesList() {
+  loadStrategies();
+  var el    = document.getElementById("strat-list");   if (!el) return;
+  var cntEl = document.getElementById("strat-count");
+  if (cntEl) cntEl.textContent = _strategies.length + " saved";
+
+  if (!_strategies.length) {
+    el.innerHTML = "<div style='color:var(--text3);font-size:13px;padding:8px 0'>No strategies yet — click <strong style='color:var(--text2)'>+ New Strategy</strong> to create one.</div>";
+    return;
+  }
+  var html = "";
+  _strategies.forEach(function(s, idx) {
+    var mcolor = s.enabled ? "var(--green)" : "var(--text3)";
+    var mbg    = s.enabled ? "var(--gdim)"  : "var(--bg4)";
+    var score  = momData.length ? momData.filter(function(m){ return m.sym === s.pair; })[0] : null;
+    var scoreStr = score ? score.score + "/100" : "—";
+    var curDir   = score ? (score.score >= s.buyScore ? "🟢 BUY signal" : score.score <= s.sellScore ? "🔴 SELL signal" : "⏸ Watching") : "—";
+
+    html += "<div style='display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)'>";
+    // Status indicator
+    html += "<div style='width:8px;height:8px;border-radius:50%;background:" + mcolor + ";flex-shrink:0;margin-top:5px'></div>";
+    // Info
+    html += "<div style='flex:1;min-width:0'>";
+    html += "<div style='display:flex;align-items:center;gap:8px;margin-bottom:4px'>";
+    html += "<span style='font-size:13px;font-weight:600'>" + escHtml(s.name) + "</span>";
+    html += "<span style='font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:" + mbg + ";color:" + mcolor + "'>" + (s.enabled ? "Active" : "Paused") + "</span>";
+    html += "</div>";
+    html += "<div style='font-size:11px;color:var(--text3);line-height:1.7'>";
+    html += s.pair + " · ";
+    if (s.mode !== "sell") html += "Buy ≥" + s.buyScore + " · ";
+    if (s.mode !== "buy")  html += "Sell ≤" + s.sellScore + " · ";
+    html += "$" + s.amount + "/trade · SL " + s.stopLoss + "% · TP +" + s.takeProfit + "%";
+    html += "</div>";
+    if (score) html += "<div style='font-size:11px;color:var(--text2);margin-top:3px'>Momentum now: <strong style='color:" + (score.score>=s.buyScore?"var(--green)":score.score<=s.sellScore?"var(--red)":"var(--text2)") + "'>" + scoreStr + "</strong> · " + curDir + "</div>";
+    html += "</div>";
+    // Actions
+    html += "<div style='display:flex;gap:6px;flex-shrink:0'>";
+    html += "<button class='db-btn' style='font-size:11px;padding:4px 9px' onclick='toggleStrategy(" + idx + ")'>" + (s.enabled ? "Pause" : "Resume") + "</button>";
+    html += "<button class='db-btn' style='font-size:11px;padding:4px 9px' onclick='openStrategyEditor(" + idx + ")'>Edit</button>";
+    html += "<button class='db-btn' style='font-size:11px;padding:4px 9px;color:var(--red);border-color:rgba(239,68,68,0.3)' onclick='deleteStrategy(" + idx + ")'>Delete</button>";
+    html += "</div>";
+    html += "</div>";
+  });
+  el.innerHTML = html;
+}
+
+function checkPriceAlerts() {
+  var fired = false;
+  priceAlerts.forEach(function(a, idx) {
+    if (a.triggered) return;
+    var d = liveData[a.sym]; if (!d) return;
+    var hit = (a.dir === "above" && d.price >= a.target) || (a.dir === "below" && d.price <= a.target);
+    if (!hit) return;
+    priceAlerts[idx].triggered = true;
+    fired = true;
+    var ticker = a.sym.replace("/USD","");
+    var msg = "🔔 " + ticker + " " + (a.dir === "above" ? "↑ above" : "↓ below") + " $" + a.target.toLocaleString("en-US",{maximumFractionDigits:2}) + " · now $" + fP(d.price);
+    showToast(msg);
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification("TrendIQ Alert 🔔", {
+        body: ticker + " hit $" + fP(d.price) + " (" + (a.dir === "above" ? "above" : "below") + " your $" + a.target.toLocaleString("en-US",{maximumFractionDigits:2}) + " target)",
+        icon: "/favicon.ico"
+      });
+    }
+  });
+  if (fired) { savePriceAlerts(); renderAlertsList(); }
 }
 </script>
 
