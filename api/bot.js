@@ -52,7 +52,8 @@ function fetchPrices() {
     const endpoint =
       "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd" +
       "&ids=" + CG_IDS +
-      "&order=market_cap_desc&per_page=20&sparkline=false&price_change_percentage=24h";
+      "&order=market_cap_desc&per_page=20&sparkline=false" +
+      "&price_change_percentage=1h,24h,7d";
     const opts    = url.parse(endpoint);
     opts.headers  = { accept: "application/json" };
     if (CG_KEY) opts.headers["x-cg-demo-api-key"] = CG_KEY;
@@ -68,10 +69,32 @@ function fetchPrices() {
   });
 }
 
-// ── Momentum score (mirrors buildMomData in browser) ──────────────────────────
-function calcScore(chg24, vol) {
-  const volScore = Math.min(5, vol / 500_000_000);
-  return Math.round(Math.min(99, Math.max(5, 50 + (chg24 * 3.5) + (volScore * 6))));
+// ── Multi-factor momentum score (mirrors calcRawMomentumScore in browser) ─────
+function calcScore(d) {
+  const chg24  = d.chg24  || 0;
+  const chg1h  = d.chg1h  || 0;
+  const chg7d  = d.chg7d  || 0;
+  const vol    = d.vol    || 0;
+  const price  = d.price  || 1;
+  const high24 = d.high24 || price;
+  const low24  = d.low24  || price;
+
+  const volScore  = Math.min(5, vol / 500_000_000);
+  const volPts    = volScore * 6;
+  const trend24   = chg24 * 3.5;
+  const mom1h     = chg1h * 8;
+
+  let trendConf = 0;
+  if (chg7d !== 0) {
+    const agree = (chg24 >= 0 && chg7d >= 0) || (chg24 < 0 && chg7d < 0);
+    trendConf   = agree ? Math.min(5, Math.abs(chg7d) * 0.3) : -Math.min(5, Math.abs(chg7d) * 0.3);
+  }
+
+  let volDamp = 0;
+  const rangePct = (high24 - low24) / price * 100;
+  if (rangePct > 15) volDamp = -(rangePct - 15) * 0.4;
+
+  return Math.round(Math.min(99, Math.max(5, 50 + trend24 + volPts + mom1h + trendConf + volDamp)));
 }
 
 // ── Kraken order placement ─────────────────────────────────────────────────────
@@ -166,12 +189,18 @@ async function runBotCycle(client) {
     priceData = {};
     raw.forEach(c => {
       const sym = CG_MAP[c.id];
-      if (sym) priceData[sym] = {
-        price: c.current_price,
-        chg24: c.price_change_percentage_24h || 0,
-        vol:   c.total_volume || 0,
-        score: calcScore(c.price_change_percentage_24h || 0, c.total_volume || 0)
-      };
+      if (sym) {
+        const d = {
+          price:  c.current_price,
+          chg24:  c.price_change_percentage_24h                   || 0,
+          chg1h:  c.price_change_percentage_1h_in_currency        || 0,
+          chg7d:  c.price_change_percentage_7d_in_currency        || 0,
+          vol:    c.total_volume                                   || 0,
+          high24: c.high_24h   || c.current_price,
+          low24:  c.low_24h    || c.current_price
+        };
+        priceData[sym] = { ...d, score: calcScore(d) };
+      }
     });
     log("Prices fetched: " + Object.keys(priceData).join(", "));
   } catch(e) {

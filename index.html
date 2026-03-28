@@ -1773,7 +1773,15 @@ function fetchPrices(force) {
     if (!Array.isArray(data)) throw new Error("unexpected response shape");
     for (var i = 0; i < data.length; i++) {
       var c = data[i], sym = CG_MAP[c.id]; if (!sym) continue;
-      liveData[sym] = {price: c.current_price, chg24: c.price_change_percentage_24h || 0, vol: c.total_volume || 0};
+      liveData[sym] = {
+        price:   c.current_price,
+        chg24:   c.price_change_percentage_24h || 0,
+        chg1h:   c.price_change_percentage_1h_in_currency || 0,
+        chg7d:   c.price_change_percentage_7d_in_currency || 0,
+        vol:     c.total_volume || 0,
+        high24h: c.high_24h    || c.current_price,
+        low24h:  c.low_24h     || c.current_price
+      };
     }
     onPricesLoaded();
   }
@@ -1831,17 +1839,47 @@ function updateDashPrices() {
 }
 
 // ─── MOMENTUM ────────────────────────────────────────────────────────────────
+// ── Multi-factor momentum score ───────────────────────────────────────────────
+function calcRawMomentumScore(d) {
+  // 1. Volume component (0-30 pts) — high volume = conviction
+  var volScore  = Math.min(5, d.vol / 500000000);
+  var volPts    = volScore * 6;  // 0-30
+
+  // 2. 24h trend (core signal)
+  var trend24   = d.chg24 * 3.5;
+
+  // 3. Short-term momentum (1h) — early signal, amplified
+  var mom1h     = (d.chg1h || 0) * 8;           // 1h move carries more weight per %
+
+  // 4. 7d trend confirmation — agree = boost, disagree = dampen
+  var trendConf = 0;
+  if (d.chg7d !== undefined && d.chg7d !== 0) {
+    var agree = (d.chg24 >= 0 && d.chg7d >= 0) || (d.chg24 < 0 && d.chg7d < 0);
+    trendConf = agree ? Math.min(5, Math.abs(d.chg7d) * 0.3) : -Math.min(5, Math.abs(d.chg7d) * 0.3);
+  }
+
+  // 5. Volatility dampening — extreme 24h range = less reliable signal
+  var volDamp = 0;
+  if (d.high24h && d.low24h && d.price) {
+    var rangePct = (d.high24h - d.low24h) / d.price * 100;
+    if (rangePct > 15) volDamp = -(rangePct - 15) * 0.4;  // dampen above 15% daily range
+  }
+
+  return Math.min(99, Math.max(5, 50 + trend24 + volPts + mom1h + trendConf + volDamp));
+}
+
 function buildMomData() {
   var syms = Object.values(CG_MAP);
   var result = [];
   for (var i = 0; i < syms.length; i++) {
     var sym = syms[i]; var d = liveData[sym]; if (!d) continue;
-    var volScore = Math.min(5, d.vol / 500000000);
-    var rawScore = Math.min(99, Math.max(5, 50 + (d.chg24 * 3.5) + (volScore * 6)));
-    var learnedMult = getLearnedMultiplier(sym, rawScore);
-    var score = Math.round(Math.min(99, Math.max(5, rawScore * learnedMult)));
+    var rawScore     = calcRawMomentumScore(d);
+    var learnedMult  = getLearnedMultiplier(sym, rawScore);   // rolling-window bucket win rate
+    var timeMult     = getTimeMultiplier(sym);                // time-of-day win rate
+    var bias         = getPairScoreBias(sym);                 // per-pair systematic offset
+    var score = Math.round(Math.min(99, Math.max(5, rawScore * learnedMult * timeMult + bias)));
     var outlook = score >= 80 ? "Strong Up" : score >= 65 ? "Likely Up" : score >= 50 ? "Neutral/Up" : score >= 35 ? "Flat" : "Fading";
-    result.push({sym:sym, price:d.price, chg:d.chg24, vol:d.vol, score:score, outlook:outlook});
+    result.push({sym:sym, price:d.price, chg:d.chg24, chg1h:d.chg1h||0, chg7d:d.chg7d||0, vol:d.vol, score:score, rawScore:Math.round(rawScore), outlook:outlook});
   }
   result.sort(function(a,b){ return b.score - a.score; });
   momData = result;
@@ -2717,7 +2755,11 @@ function initBinanceWS() {
       var chg24 = parseFloat(d.P);
       var vol   = parseFloat(d.q);  // quote volume in USDT ≈ USD
       if (!price) return;
-      liveData[sym] = {price: price, chg24: chg24, vol: vol};
+      // WS only gives 24h — preserve existing 1h/7d/high/low from last CoinGecko fetch
+      var prev = liveData[sym] || {};
+      liveData[sym] = {price: price, chg24: chg24, vol: vol,
+        chg1h: prev.chg1h || 0, chg7d: prev.chg7d || 0,
+        high24h: prev.high24h || price, low24h: prev.low24h || price};
       // Debounced UI update — batch rapid ticks into one render per 500ms
       if (!_wsUpdatePending) {
         _wsUpdatePending = true;
@@ -3356,6 +3398,7 @@ async function autoExecute(strat, side, price, reason, existingPos) {
       exitReason:  reason.replace(/[🎯🛑📉🖐🔵🟢🔴]/gu,"").trim().split(" ")[0],  // "TP", "SL", "Sell", "Manual"
       durationMin: Math.round((Date.now() - existingPos.entryTime) / 60000),
       timestamp:   Date.now(),
+      hour:        new Date().getUTCHours(),
       mode:        existingPos.mode
     });
   }
@@ -3536,20 +3579,137 @@ function analyzeOutcomes() {
   return result;
 }
 
-// Returns the learned score multiplier for a given pair+score (1.0 = neutral)
+// ── Rolling-window decay weight (30-day half-life) ────────────────────────────
+function decayWeight(timestamp) {
+  var daysSince = (Date.now() - timestamp) / 86400000;
+  return Math.exp(-Math.log(2) / 30 * daysSince);  // 30-day half-life
+}
+
+// Returns the learned score multiplier — uses time-decay weighted win rates
 function getLearnedMultiplier(pair, score) {
   loadTradeOutcomes();
   if (!_tradeOutcomes.length) return 1.0;
   var bkt = bucketLabel(score);
-  var pairOutcomes = _tradeOutcomes.filter(function(o){ return o.pair === pair && bucketLabel(o.entryScore || o.buyScore || 0) === bkt; });
-  if (pairOutcomes.length < 3) return 1.0;  // not enough data
-  var wins     = pairOutcomes.filter(function(o){ return o.pnlPct > 0; }).length;
-  var winRate  = wins / pairOutcomes.length;
-  // Amplify good buckets, dampen poor ones
+  var pairOutcomes = _tradeOutcomes.filter(function(o){
+    return o.pair === pair && bucketLabel(o.entryScore || o.buyScore || 0) === bkt;
+  });
+  if (pairOutcomes.length < 3) return 1.0;
+
+  // Weighted win rate — recent trades count more
+  var wWins = 0, wTotal = 0;
+  pairOutcomes.forEach(function(o) {
+    var w = decayWeight(o.timestamp || Date.now());
+    wTotal += w;
+    if (o.pnlPct > 0) wWins += w;
+  });
+  var winRate = wTotal > 0 ? wWins / wTotal : 0;
   if (winRate >= 0.70) return 1.12;
   if (winRate >= 0.55) return 1.05;
   if (winRate >= 0.40) return 0.95;
   return 0.88;
+}
+
+// ── Time-of-day weighting ─────────────────────────────────────────────────────
+var TIME_BUCKETS = [
+  {label:"Asia Night (00-05 UTC)",  hours:[0,1,2,3,4,5]},
+  {label:"Asia Open  (06-09 UTC)",  hours:[6,7,8,9]},
+  {label:"Europe     (10-13 UTC)",  hours:[10,11,12,13]},
+  {label:"US Open    (14-17 UTC)",  hours:[14,15,16,17]},
+  {label:"US Evening (18-23 UTC)",  hours:[18,19,20,21,22,23]}
+];
+function getTimeBucketLabel(hour) {
+  for (var i = 0; i < TIME_BUCKETS.length; i++) {
+    if (TIME_BUCKETS[i].hours.indexOf(hour) !== -1) return TIME_BUCKETS[i].label;
+  }
+  return "US Evening (18-23 UTC)";
+}
+
+function getTimeMultiplier(pair) {
+  if (!_tradeOutcomes.length) return 1.0;
+  var curBucket = getTimeBucketLabel(new Date().getUTCHours());
+  var bucketTrades = _tradeOutcomes.filter(function(o) {
+    if (o.pair !== pair || o.hour === undefined) return false;
+    return getTimeBucketLabel(o.hour) === curBucket;
+  });
+  if (bucketTrades.length < 3) return 1.0;
+  var wWins = 0, wTotal = 0;
+  bucketTrades.forEach(function(o) {
+    var w = decayWeight(o.timestamp || Date.now());
+    wTotal += w; if (o.pnlPct > 0) wWins += w;
+  });
+  var wr = wTotal > 0 ? wWins / wTotal : 0.5;
+  if (wr >= 0.70) return 1.08;
+  if (wr >= 0.55) return 1.03;
+  if (wr >= 0.40) return 0.97;
+  return 0.92;
+}
+
+// Returns time-of-day analysis for all buckets for a pair (for UI display)
+function analyzeByTime(pair) {
+  var result = {};
+  TIME_BUCKETS.forEach(function(tb) {
+    var trades = _tradeOutcomes.filter(function(o) {
+      return o.pair === pair && o.hour !== undefined && tb.hours.indexOf(o.hour) !== -1;
+    });
+    if (!trades.length) return;
+    var wWins = 0, wTotal = 0, totalPnl = 0;
+    trades.forEach(function(o) {
+      var w = decayWeight(o.timestamp || Date.now());
+      wTotal += w; if (o.pnlPct > 0) wWins += w;
+      totalPnl += o.pnlPct;
+    });
+    result[tb.label] = {
+      count:   trades.length,
+      winRate: wTotal > 0 ? wWins / wTotal : 0,
+      avgPnl:  totalPnl / trades.length
+    };
+  });
+  return result;
+}
+
+// ── Per-pair feature tuning (bias) ────────────────────────────────────────────
+// If a pair consistently wins more/less than average → shift its score by ±bias
+function getPairScoreBias(pair) {
+  if (_tradeOutcomes.length < 10) return 0;
+  var pairTrades = _tradeOutcomes.filter(function(o){ return o.pair === pair; });
+  if (pairTrades.length < 5) return 0;
+  // Use decay-weighted win rates for comparison
+  function wWinRate(trades) {
+    var wW = 0, wT = 0;
+    trades.forEach(function(o){ var w = decayWeight(o.timestamp||Date.now()); wT+=w; if(o.pnlPct>0) wW+=w; });
+    return wT > 0 ? wW / wT : 0.5;
+  }
+  var pairWR  = wWinRate(pairTrades);
+  var globalWR = wWinRate(_tradeOutcomes);
+  var diff = pairWR - globalWR;  // positive = pair outperforms, negative = underperforms
+  return Math.round(diff * 20);  // ±0–10 score point shift
+}
+
+// ── Exit timing learning ──────────────────────────────────────────────────────
+// Suggests TP based on 75th-percentile of winning trade P&L for this pair
+function getSuggestedTP(pair) {
+  var wins = _tradeOutcomes.filter(function(o){ return o.pair === pair && o.pnlPct > 0 && o.exitReason !== "Historical"; });
+  if (wins.length < 5) return null;
+  wins.sort(function(a,b){ return a.pnlPct - b.pnlPct; });
+  var p75 = wins[Math.floor(wins.length * 0.75)].pnlPct;
+  return parseFloat(p75.toFixed(1));
+}
+
+// Suggests SL based on 25th-percentile magnitude of losing trades for this pair
+function getSuggestedSL(pair) {
+  var losses = _tradeOutcomes.filter(function(o){ return o.pair === pair && o.pnlPct < 0 && o.exitReason !== "Historical"; });
+  if (losses.length < 5) return null;
+  losses.sort(function(a,b){ return a.pnlPct - b.pnlPct; });  // most negative first
+  var p25 = losses[Math.floor(losses.length * 0.25)].pnlPct;
+  return parseFloat(p25.toFixed(1));  // negative number
+}
+
+// Peak P&L analysis — avg best P&L seen in winning trades (proxy for where price peaked)
+function getAvgPeakPnl(pair) {
+  var wins = _tradeOutcomes.filter(function(o){ return o.pair === pair && o.pnlPct > 0 && o.exitReason !== "Historical"; });
+  if (wins.length < 3) return null;
+  var avg = wins.reduce(function(s,o){ return s + o.pnlPct; }, 0) / wins.length;
+  return parseFloat(avg.toFixed(1));
 }
 
 // Returns suggested buy score for a pair based on history
@@ -3585,47 +3745,101 @@ function renderLearningPanel() {
   var avgPnl      = totalTrades > 0 ? (_tradeOutcomes.reduce(function(s,o){ return s + o.pnlPct; }, 0) / totalTrades).toFixed(2) : "0";
 
   var html = "";
-  // Summary bar
+
+  // ── Summary bar ──
   html += "<div style='display:flex;gap:18px;padding:12px 0 14px;border-bottom:1px solid var(--border);flex-wrap:wrap'>";
   html += "<div><div style='font-size:11px;color:var(--text3);margin-bottom:3px'>TOTAL TRADES LEARNED</div><div style='font-size:18px;font-weight:700;color:var(--text)'>" + totalTrades + "</div></div>";
   html += "<div><div style='font-size:11px;color:var(--text3);margin-bottom:3px'>OVERALL WIN RATE</div><div style='font-size:18px;font-weight:700;color:" + (overallWR >= 55 ? "var(--green)" : overallWR >= 40 ? "var(--amber)" : "var(--red)") + "'>" + overallWR + "%</div></div>";
   html += "<div><div style='font-size:11px;color:var(--text3);margin-bottom:3px'>AVG P&L / TRADE</div><div style='font-size:18px;font-weight:700;color:" + (parseFloat(avgPnl) >= 0 ? "var(--green)" : "var(--red)") + "'>" + (parseFloat(avgPnl) >= 0 ? "+" : "") + avgPnl + "%</div></div>";
   html += "</div>";
 
-  // Per-pair breakdown
+  // ── Per-pair breakdown ──
   var BUCKETS = ["< 50","50-59","60-69","70-79","80-89","90-99"];
   pairs.forEach(function(pair) {
-    var bkts    = analysis[pair];
-    var suggest = getSuggestedBuyScore(pair);
-    html += "<div style='margin-top:16px'>";
-    html += "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>";
-    html += "  <span style='font-size:13px;font-weight:600'>" + pair + "</span>";
-    if (suggest !== null) html += "  <span style='font-size:11px;padding:2px 9px;border-radius:20px;background:rgba(34,197,94,0.15);color:var(--green)'>💡 Suggested buy score: <strong>" + suggest + "</strong></span>";
+    var bkts       = analysis[pair];
+    var suggest    = getSuggestedBuyScore(pair);
+    var sugTP      = getSuggestedTP(pair);
+    var sugSL      = getSuggestedSL(pair);
+    var bias       = getPairScoreBias(pair);
+    var timeBkts   = analyzeByTime(pair);
+    var mult       = getLearnedMultiplier(pair, 70);
+    var multStr    = mult > 1.05 ? "↑ +" + Math.round((mult-1)*100) + "% boost" : mult < 0.95 ? "↓ " + Math.round((1-mult)*100) + "% reduced" : "→ neutral";
+    var multCol    = mult > 1.05 ? "var(--green)" : mult < 0.95 ? "var(--red)" : "var(--text3)";
+    var biasStr    = bias > 0 ? "+" + bias.toFixed(1) + " pts" : bias < 0 ? bias.toFixed(1) + " pts" : "±0 pts";
+    var biasCol    = bias > 2 ? "var(--green)" : bias < -2 ? "var(--red)" : "var(--text3)";
+
+    html += "<div style='margin-top:18px;padding-top:14px;border-top:1px solid var(--border2)'>";
+
+    // Pair header row
+    html += "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px'>";
+    html += "  <span style='font-size:14px;font-weight:700'>" + pair + "</span>";
+    html += "  <div style='display:flex;gap:8px;flex-wrap:wrap'>";
+    if (suggest !== null)
+      html += "<span style='font-size:11px;padding:2px 9px;border-radius:20px;background:rgba(34,197,94,0.15);color:var(--green)'>💡 Buy ≥ <strong>" + suggest + "</strong></span>";
+    if (sugTP !== null)
+      html += "<span style='font-size:11px;padding:2px 9px;border-radius:20px;background:rgba(34,197,94,0.10);color:var(--green)'>🎯 TP <strong>+" + sugTP + "%</strong></span>";
+    if (sugSL !== null)
+      html += "<span style='font-size:11px;padding:2px 9px;border-radius:20px;background:rgba(239,68,68,0.10);color:var(--red)'>🛑 SL <strong>" + sugSL + "%</strong></span>";
+    html += "  </div>";
     html += "</div>";
-    html += "<table style='width:100%;border-collapse:collapse;font-size:11px'>";
-    html += "<thead><tr style='color:var(--text3)'><th style='text-align:left;padding:3px 6px;font-weight:600'>Score Range</th><th style='text-align:center;padding:3px 6px;font-weight:600'>Trades</th><th style='text-align:center;padding:3px 6px;font-weight:600'>Win %</th><th style='text-align:center;padding:3px 6px;font-weight:600'>Avg P&L</th><th style='text-align:left;padding:3px 6px;font-weight:600'>Signal Strength</th></tr></thead>";
-    html += "<tbody>";
+
+    // Multiplier + bias row
+    html += "<div style='display:flex;gap:16px;font-size:11px;color:var(--text3);margin-bottom:10px;flex-wrap:wrap'>";
+    html += "  <span>Adaptive score: <span style='color:" + multCol + ";font-weight:600'>" + multStr + "</span></span>";
+    html += "  <span>Pair bias: <span style='color:" + biasCol + ";font-weight:600'>" + biasStr + "</span></span>";
+    html += "</div>";
+
+    // Score-bucket table
+    html += "<table style='width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px'>";
+    html += "<thead><tr style='color:var(--text3)'>";
+    html += "<th style='text-align:left;padding:3px 6px;font-weight:600'>Score Range</th>";
+    html += "<th style='text-align:center;padding:3px 6px;font-weight:600'>Trades</th>";
+    html += "<th style='text-align:center;padding:3px 6px;font-weight:600'>Win %</th>";
+    html += "<th style='text-align:center;padding:3px 6px;font-weight:600'>Avg P&L</th>";
+    html += "<th style='text-align:left;padding:3px 6px;font-weight:600'>Model Effect</th>";
+    html += "</tr></thead><tbody>";
     BUCKETS.forEach(function(bName) {
-      var b = bkts[bName];
-      if (!b) return;
+      var b = bkts[bName]; if (!b) return;
       var wr   = Math.round(b.winRate * 100);
       var col  = wr >= 65 ? "var(--green)" : wr >= 45 ? "var(--amber)" : "var(--red)";
-      var barW = Math.max(4, wr);
-      var mult = getLearnedMultiplier(pair, bName === "< 50" ? 40 : parseInt(bName.split("-")[0], 10));
-      var multStr = mult > 1.05 ? "↑ Boosted +" + Math.round((mult-1)*100) + "%" : mult < 0.95 ? "↓ Reduced " + Math.round((1-mult)*100) + "%" : "→ Neutral";
-      var multCol = mult > 1.05 ? "var(--green)" : mult < 0.95 ? "var(--red)" : "var(--text3)";
+      var bMult = getLearnedMultiplier(pair, bName === "< 50" ? 40 : parseInt(bName.split("-")[0], 10));
+      var bMStr = bMult > 1.05 ? "↑ Boosted +" + Math.round((bMult-1)*100) + "%" : bMult < 0.95 ? "↓ Reduced " + Math.round((1-bMult)*100) + "%" : "→ Neutral";
+      var bMCol = bMult > 1.05 ? "var(--green)" : bMult < 0.95 ? "var(--red)" : "var(--text3)";
       html += "<tr style='border-top:1px solid var(--border2)'>";
       html += "<td style='padding:5px 6px;font-family:\"JetBrains Mono\",monospace;font-weight:600'>" + bName + "</td>";
       html += "<td style='text-align:center;padding:5px 6px;color:var(--text3)'>" + b.count + "</td>";
       html += "<td style='text-align:center;padding:5px 6px;color:" + col + ";font-weight:700'>" + wr + "%</td>";
       html += "<td style='text-align:center;padding:5px 6px;color:" + (b.avgPnl >= 0 ? "var(--green)" : "var(--red)") + "'>" + (b.avgPnl >= 0 ? "+" : "") + b.avgPnl.toFixed(2) + "%</td>";
-      html += "<td style='padding:5px 6px'><span style='color:" + multCol + ";font-size:10px'>" + (b.count >= 3 ? multStr : "<span style=\"color:var(--text3)\">⏳ Need " + (3 - b.count) + " more trades</span>") + "</span></td>";
+      html += "<td style='padding:5px 6px'><span style='color:" + bMCol + ";font-size:10px'>" + (b.count >= 3 ? bMStr : "<span style=\"color:var(--text3)\">⏳ Need " + (3 - b.count) + " more</span>") + "</span></td>";
       html += "</tr>";
     });
-    html += "</tbody></table></div>";
+    html += "</tbody></table>";
+
+    // Time-of-day section (only if we have timed data)
+    var timeTrades = timeBkts.reduce(function(s,b){ return s + b.count; }, 0);
+    if (timeTrades > 0) {
+      html += "<div style='font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;letter-spacing:0.04em'>🕐 TIME-OF-DAY PERFORMANCE (UTC)</div>";
+      html += "<div style='display:flex;flex-direction:column;gap:4px'>";
+      timeBkts.forEach(function(tb) {
+        if (!tb.count) return;
+        var twr  = Math.round(tb.winRate * 100);
+        var tcol = twr >= 65 ? "var(--green)" : twr >= 45 ? "var(--amber)" : "var(--red)";
+        var barW = Math.max(3, twr);
+        html += "<div style='display:flex;align-items:center;gap:8px'>";
+        html += "  <div style='width:145px;font-size:10px;color:var(--text3);flex-shrink:0;white-space:nowrap'>" + tb.label + "</div>";
+        html += "  <div style='flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden'>";
+        html += "    <div style='height:100%;width:" + barW + "%;background:" + tcol + ";border-radius:3px'></div>";
+        html += "  </div>";
+        html += "  <div style='width:85px;font-size:10px;font-weight:600;color:" + tcol + ";text-align:right'>" + twr + "% win · " + tb.count + "t</div>";
+        html += "</div>";
+      });
+      html += "</div>";
+    }
+
+    html += "</div>"; // end pair block
   });
 
-  html += "<div style='margin-top:12px;font-size:11px;color:var(--text3);line-height:1.6'>🧠 The adaptive multiplier automatically adjusts the momentum score for each pair based on historical accuracy. Buckets with ≥3 trades and ≥70% win rate get a +12% boost; poor performers get dampened. More sim trades = better calibration.</div>";
+  html += "<div style='margin-top:14px;font-size:11px;color:var(--text3);line-height:1.6'>🧠 ML uses decay-weighted outcomes (30-day half-life) so recent trades matter more. Suggested TP/SL are the 75th / 25th percentile of your actual exit data for this pair.</div>";
   el.innerHTML = html;
 }
 
@@ -3638,10 +3852,12 @@ function renderMLAccuracy() {
   }
   var analysis = analyzeOutcomes();
   var BUCKETS  = ["< 50","50-59","60-69","70-79","80-89","90-99"];
-  var html = "<div style='font-size:13px;font-weight:600;margin-bottom:12px'>Signal Accuracy by Score Range</div>";
-  html += "<div style='display:flex;flex-direction:column;gap:8px'>";
+  var html = "";
+
+  // ── Section 1: Signal accuracy by score range ──
+  html += "<div style='font-size:12px;font-weight:700;color:var(--text3);letter-spacing:0.05em;margin-bottom:10px'>SIGNAL ACCURACY BY SCORE RANGE</div>";
+  html += "<div style='display:flex;flex-direction:column;gap:8px;margin-bottom:20px'>";
   BUCKETS.forEach(function(bName) {
-    // Aggregate across all pairs
     var count = 0, wins = 0, totalPnl = 0;
     Object.values(analysis).forEach(function(pairBkts) {
       var b = pairBkts[bName]; if (!b) return;
@@ -3664,6 +3880,81 @@ function renderMLAccuracy() {
     html += "</div>";
   });
   html += "</div>";
+
+  // ── Section 2: Time-of-day breakdown (global across all pairs) ──
+  var timedTrades = _tradeOutcomes.filter(function(o){ return o.hour !== undefined; });
+  if (timedTrades.length >= 3) {
+    html += "<div style='font-size:12px;font-weight:700;color:var(--text3);letter-spacing:0.05em;margin-bottom:10px'>BEST TRADING SESSIONS (UTC)</div>";
+    html += "<div style='display:flex;flex-direction:column;gap:6px;margin-bottom:20px'>";
+    TIME_BUCKETS.forEach(function(bucket) {
+      var bTrades = timedTrades.filter(function(o){ return bucket.hours.indexOf(o.hour) !== -1; });
+      if (!bTrades.length) return;
+      var wins    = bTrades.filter(function(o){ return o.pnlPct > 0; }).length;
+      var wr      = Math.round(wins / bTrades.length * 100);
+      var avgPnl  = bTrades.reduce(function(s,o){ return s + o.pnlPct; }, 0) / bTrades.length;
+      var col     = wr >= 65 ? "var(--green)" : wr >= 45 ? "var(--amber)" : "var(--red)";
+      var barW    = Math.max(3, wr);
+      var isCurrent = bucket.hours.indexOf(new Date().getUTCHours()) !== -1;
+      html += "<div style='display:flex;align-items:center;gap:8px'>";
+      html += "  <div style='width:150px;font-size:10px;color:var(--text3);flex-shrink:0;white-space:nowrap'>";
+      html += "    " + bucket.label + (isCurrent ? " <span style='color:var(--accent);font-weight:700'>← now</span>" : "");
+      html += "  </div>";
+      html += "  <div style='flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden'>";
+      html += "    <div style='height:100%;width:" + barW + "%;background:" + col + ";border-radius:3px'></div>";
+      html += "  </div>";
+      html += "  <div style='width:140px;font-size:10px;font-weight:600;color:" + col + ";text-align:right'>";
+      html += "    " + wr + "% win · " + bTrades.length + "t · avg " + (avgPnl >= 0 ? "+" : "") + avgPnl.toFixed(1) + "%";
+      html += "  </div>";
+      html += "</div>";
+    });
+    html += "</div>";
+
+    // Best session callout
+    var bestBucket = null, bestWR = 0;
+    TIME_BUCKETS.forEach(function(bucket) {
+      var bTrades = timedTrades.filter(function(o){ return bucket.hours.indexOf(o.hour) !== -1; });
+      if (bTrades.length < 2) return;
+      var wr = bTrades.filter(function(o){ return o.pnlPct > 0; }).length / bTrades.length * 100;
+      if (wr > bestWR) { bestWR = wr; bestBucket = bucket; }
+    });
+    if (bestBucket) {
+      html += "<div style='font-size:11px;padding:8px 12px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:var(--green);margin-bottom:14px'>";
+      html += "  🏆 Best session: <strong>" + bestBucket.label + "</strong> — " + Math.round(bestWR) + "% win rate";
+      html += "</div>";
+    }
+  }
+
+  // ── Section 3: Per-pair win rate league table ──
+  html += "<div style='font-size:12px;font-weight:700;color:var(--text3);letter-spacing:0.05em;margin-bottom:10px'>PER-PAIR WIN RATES</div>";
+  html += "<div style='display:flex;flex-direction:column;gap:5px'>";
+  var pairStats = [];
+  Object.keys(analysis).forEach(function(pair) {
+    var bkts = analysis[pair];
+    var cnt = 0, wns = 0;
+    Object.values(bkts).forEach(function(b){ cnt += b.count; wns += b.wins; });
+    if (!cnt) return;
+    pairStats.push({ pair: pair, count: cnt, winRate: wns/cnt });
+  });
+  pairStats.sort(function(a,b){ return b.winRate - a.winRate; });
+  pairStats.forEach(function(ps) {
+    var wr  = Math.round(ps.winRate * 100);
+    var col = wr >= 65 ? "var(--green)" : wr >= 45 ? "var(--amber)" : "var(--red)";
+    var bias = getPairScoreBias(ps.pair);
+    html += "<div style='display:flex;align-items:center;gap:8px'>";
+    html += "  <div style='width:70px;font-size:11px;font-weight:600;color:var(--text);flex-shrink:0'>" + ps.pair.split("/")[0] + "</div>";
+    html += "  <div style='flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden'>";
+    html += "    <div style='height:100%;width:" + Math.max(3,wr) + "%;background:" + col + ";border-radius:3px'></div>";
+    html += "  </div>";
+    html += "  <div style='width:120px;font-size:10px;font-weight:600;color:" + col + ";text-align:right'>";
+    html += "    " + wr + "% · " + ps.count + " trades";
+    html += "  </div>";
+    html += "  <div style='width:55px;font-size:10px;text-align:right;color:" + (bias > 1 ? "var(--green)" : bias < -1 ? "var(--red)" : "var(--text3)") + "'>";
+    html += "    " + (bias > 0 ? "+" : "") + bias.toFixed(1) + " pts";
+    html += "  </div>";
+    html += "</div>";
+  });
+  html += "</div>";
+
   el.innerHTML = html;
 }
 
