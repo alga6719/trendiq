@@ -412,10 +412,10 @@ button,input,select,textarea{font-family:inherit}
             <div class="mc"><div class="mc-top"><div><div class="mc-label">BTC Price</div><div class="mc-live"><span class="mc-dot"></span>CoinGecko Live</div></div></div><div class="mc-val skel skel-lg" id="d-btc-price">…</div><div class="mc-delta" id="d-btc-chg"></div></div>
             <div class="mc"><div class="mc-top"><div class="mc-label">ETH Price</div></div><div class="mc-val skel skel-lg" id="d-eth-price">…</div><div class="mc-delta" id="d-eth-chg"></div></div>
             <div class="mc"><div class="mc-top"><div class="mc-label">SOL Price</div></div><div class="mc-val skel skel-lg" id="d-sol-price">…</div><div class="mc-delta" id="d-sol-chg"></div></div>
-            <div class="mc"><div class="mc-top"><div class="mc-label">Win Rate</div></div><div class="mc-val">68%</div><div class="mc-sub">100 total trades</div></div>
+            <div class="mc"><div class="mc-top"><div class="mc-label">Win Rate</div></div><div class="mc-val" id="dash-win-rate">—</div><div class="mc-sub" id="dash-trade-count">Connect Kraken for stats</div></div>
           </div>
           <div class="g2" style="margin-bottom:16px">
-            <div class="card"><div class="card-h">Portfolio Performance</div><div style="position:relative;height:220px"><canvas id="perfChart"></canvas></div></div>
+            <div class="card"><div class="card-h">BTC 7d % Change <span style="font-size:11px;color:var(--text3);font-weight:400">· live CoinGecko</span></div><div style="position:relative;height:220px"><canvas id="perfChart"></canvas></div></div>
             <div class="card">
               <div class="card-h" style="margin-bottom:16px">Market Sentiment</div>
               <div class="gauge-wrap">
@@ -482,14 +482,13 @@ button,input,select,textarea{font-family:inherit}
           <div class="card-h" style="margin-bottom:20px">Strategies</div>
           <div class="g2w">
             <div class="card">
-              <div class="card-h" style="margin-bottom:14px">Active strategies</div>
-              <div class="st-row"><div><div class="st-name">Momentum Long</div><div class="st-meta">BTC/USD · 15m · Min 72% confidence</div></div><span class="badge bg">Running</span></div>
-              <div class="st-row"><div><div class="st-name">DCA Accumulator</div><div class="st-meta">ETH/USD · Daily · $50/trade</div></div><span class="badge bg">Running</span></div>
-              <div class="st-row"><div><div class="st-name">Whale Follower</div><div class="st-meta">SOL/USD · Event-driven</div></div><span class="badge ba">Paused</span></div>
-              <div class="st-row"><div><div class="st-name">RSI Reversal</div><div class="st-meta">AVAX/USD · 1h</div></div><span class="badge bg">Running</span></div>
+              <div class="card-h" style="margin-bottom:14px" id="strat-list-title">Trade Activity by Pair</div>
+              <div id="strat-pairs-list">
+                <div style="color:var(--text3);font-size:13px;padding:8px 0">Connect Kraken to see your real trade breakdown by pair.</div>
+              </div>
               <div style="margin-top:16px"><button class="btn-purple" style="font-size:12px;padding:7px 14px">+ New Strategy</button></div>
             </div>
-            <div class="card"><div class="card-h" style="margin-bottom:14px">Win Rate by Strategy</div><div style="position:relative;height:180px"><canvas id="stratChart"></canvas></div></div>
+            <div class="card"><div class="card-h" style="margin-bottom:14px" id="strat-chart-title">Win Rate by Pair</div><div style="position:relative;height:180px"><canvas id="stratChart"></canvas></div></div>
           </div>
         </div>
         <div id="dtab-ml" class="db-tab">
@@ -530,34 +529,41 @@ button,input,select,textarea{font-family:inherit}
           </div>
         </div>
         <div id="dtab-whale" class="db-tab">
-          <div class="card-h" style="margin-bottom:20px">Whale Alerts</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div class="card-h">Whale Alerts</div>
+            <span style="font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);padding:3px 10px;border-radius:20px">📊 Volume-derived estimates · not on-chain data</span>
+          </div>
           <div class="g2">
-            <div class="card"><div class="card-h" style="margin-bottom:14px">Live transactions</div><div id="whaleList"></div></div>
-            <div class="card"><div class="card-h" style="margin-bottom:14px">Whale stats (24h)</div>
-              <div class="mc" style="margin-bottom:10px"><div class="mc-label">Large buys</div><div class="mc-val" style="font-size:20px;color:var(--green)">14</div></div>
-              <div class="mc" style="margin-bottom:10px"><div class="mc-label">Large sells</div><div class="mc-val" style="font-size:20px;color:var(--red)">9</div></div>
-              <div class="mc"><div class="mc-label">Net whale flow</div><div class="mc-val up" style="font-size:20px">+$18.4M</div></div>
+            <div class="card"><div class="card-h" style="margin-bottom:14px">Estimated large moves</div><div id="whaleList"></div></div>
+            <div class="card"><div class="card-h" style="margin-bottom:14px">Whale stats (24h est.)</div>
+              <div class="mc" style="margin-bottom:10px"><div class="mc-label">Large buys (est.)</div><div class="mc-val" id="whale-buys" style="font-size:20px;color:var(--green)">—</div></div>
+              <div class="mc" style="margin-bottom:10px"><div class="mc-label">Large sells (est.)</div><div class="mc-val" id="whale-sells" style="font-size:20px;color:var(--red)">—</div></div>
+              <div class="mc"><div class="mc-label">Net whale flow (est.)</div><div class="mc-val" id="whale-net" style="font-size:20px">—</div></div>
+              <div style="margin-top:12px;font-size:11px;color:var(--text3);line-height:1.5">Estimates derived from CoinGecko 24h trading volume. Not actual blockchain whale transactions.</div>
             </div>
           </div>
         </div>
         <div id="dtab-risk" class="db-tab">
           <div class="card-h" style="margin-bottom:20px">Risk Manager</div>
           <div class="g3">
-            <div class="mc"><div class="mc-label">Portfolio Risk</div><div class="mc-val" style="font-size:20px;color:var(--amber)">Medium</div></div>
-            <div class="mc"><div class="mc-label">Max Drawdown (7d)</div><div class="mc-val" style="font-size:20px;color:var(--red)">-8.4%</div></div>
-            <div class="mc"><div class="mc-label">Position Limit Used</div><div class="mc-val" style="font-size:20px">68%</div></div>
+            <div class="mc"><div class="mc-label">Portfolio Risk</div><div class="mc-val" id="risk-level" style="font-size:20px;color:var(--text3)">—</div><div class="mc-sub" id="risk-level-sub">Connect Kraken</div></div>
+            <div class="mc"><div class="mc-label">7d Net Flow</div><div class="mc-val" id="risk-netflow" style="font-size:20px">—</div><div class="mc-sub" id="risk-netflow-sub">From Kraken trades</div></div>
+            <div class="mc"><div class="mc-label">Win Rate</div><div class="mc-val" id="risk-winrate" style="font-size:20px">—</div><div class="mc-sub" id="risk-winrate-sub">Sell vs buy price</div></div>
           </div>
           <div class="g2">
-            <div class="card"><div class="card-h" style="margin-bottom:16px">Risk Breakdown</div>
-              <div class="rg-row"><span>Portfolio volatility</span><div class="rg-track"><div class="rg-fill" style="width:42%;background:#f59e0b"></div></div><span class="mono" style="color:var(--amber)">42%</span></div>
-              <div class="rg-row"><span>Concentration risk</span><div class="rg-track"><div class="rg-fill" style="width:68%;background:#ef4444"></div></div><span class="mono" style="color:var(--red)">68%</span></div>
-              <div class="rg-row"><span>Liquidity risk</span><div class="rg-track"><div class="rg-fill" style="width:24%;background:#22c55e"></div></div><span class="mono" style="color:var(--green)">24%</span></div>
-              <div class="rg-row"><span>Leverage exposure</span><div class="rg-track"><div class="rg-fill" style="width:15%;background:#22c55e"></div></div><span class="mono" style="color:var(--green)">15%</span></div>
+            <div class="card"><div class="card-h" style="margin-bottom:16px">Trade Breakdown</div>
+              <div id="risk-breakdown">
+                <div class="rg-row"><span>Pair concentration</span><div class="rg-track"><div id="rb-concentration" class="rg-fill" style="width:0%;background:#f59e0b"></div></div><span class="mono" id="rb-concentration-val" style="color:var(--amber)">—</span></div>
+                <div class="rg-row"><span>Buy vs Sell balance</span><div class="rg-track"><div id="rb-balance" class="rg-fill" style="width:50%;background:#8b5cf6"></div></div><span class="mono" id="rb-balance-val" style="color:var(--purple)">—</span></div>
+                <div class="rg-row"><span>Fee drag</span><div class="rg-track"><div id="rb-fee" class="rg-fill" style="width:0%;background:#22c55e"></div></div><span class="mono" id="rb-fee-val" style="color:var(--green)">—</span></div>
+                <div style="margin-top:14px;font-size:11px;color:var(--text3)">Based on your Kraken trade history. Connect Kraken to see real metrics.</div>
+              </div>
             </div>
             <div class="card"><div class="card-h" style="margin-bottom:14px">Risk Limits</div>
               <div class="st-row"><div><div class="st-name">Max position size</div></div><span class="mono" style="font-weight:600">10%</span></div>
               <div class="st-row"><div><div class="st-name">Stop loss</div></div><span class="mono" style="font-weight:600">-5%</span></div>
               <div class="st-row"><div><div class="st-name">Daily loss limit</div></div><span class="mono" style="font-weight:600">-15%</span></div>
+              <div id="risk-kraken-summary" style="margin-top:14px;padding:12px;background:var(--bg3);border-radius:var(--r);font-size:12px;color:var(--text3);display:none"></div>
             </div>
           </div>
         </div>
@@ -581,10 +587,10 @@ button,input,select,textarea{font-family:inherit}
         <div id="dtab-sniper" class="db-tab">
           <div class="card-h" style="margin-bottom:20px">Sniper Bot</div>
           <div class="mc-grid">
-            <div class="mc"><div class="mc-label">Bot P&amp;L (7d)</div><div class="mc-val up" style="font-size:20px">+$8,420</div></div>
-            <div class="mc"><div class="mc-label">Trades (7d)</div><div class="mc-val" style="font-size:20px">247</div></div>
-            <div class="mc"><div class="mc-label">Win Rate</div><div class="mc-val" style="font-size:20px">68%</div></div>
-            <div class="mc"><div class="mc-label">Status</div><div class="mc-val" style="font-size:16px;color:var(--green)">Running</div></div>
+            <div class="mc"><div class="mc-label">Net Flow (7d)</div><div class="mc-val" id="bot-pnl" style="font-size:20px">—</div><div class="mc-sub" id="bot-pnl-sub">Connect Kraken</div></div>
+            <div class="mc"><div class="mc-label">Trades (7d)</div><div class="mc-val" id="bot-trades7d" style="font-size:20px">—</div><div class="mc-sub">From Kraken history</div></div>
+            <div class="mc"><div class="mc-label">Win Rate</div><div class="mc-val" id="bot-win-rate" style="font-size:20px">—</div><div class="mc-sub" id="bot-total-trades">Sell vs buy price</div></div>
+            <div class="mc"><div class="mc-label">Bot Status</div><div class="mc-val" id="bot-status" style="font-size:16px;color:var(--text3)">Idle</div></div>
           </div>
           <div class="g2">
             <div class="card"><div class="card-h">Configuration</div>
@@ -819,8 +825,12 @@ async function fetchKraken() {
     var trdRes = await kProxy("/0/private/TradesHistory", {trades: "true"});
     if (trdRes.result && trdRes.result.trades) {
       krakenTrades = Object.values(trdRes.result.trades)
-        .sort(function(a,b){ return b.time - a.time; }).slice(0, 20);
-      renderKrakenTrades();
+        .sort(function(a,b){ return b.time - a.time; }).slice(0, 50);
+      renderKrakenTrades();   // updates Trade History tab + calls computeKrakenStats
+      renderRecentTrades();   // update dashboard Recent Trades card with real data
+      // Update trade count on portfolio tab
+      var tc = document.getElementById("kraken-trade-count");
+      if (tc) tc.textContent = krakenTrades.length + (trdRes.result.count > 50 ? "+" : "");
     }
   } catch(e) {
     console.warn("Kraken TradesHistory error:", e.message);
@@ -936,7 +946,10 @@ function renderKrakenOrders() {
 
 function renderKrakenTrades() {
   var el = document.getElementById("kraken-trades"); if (!el) return;
-  if (!krakenTrades.length) { el.innerHTML = "<tr><td colspan='7' style='text-align:center;color:var(--text3);padding:16px'>No trade history</td></tr>"; return; }
+  if (!krakenTrades.length) {
+    el.innerHTML = "<tr><td colspan='7' style='text-align:center;color:var(--text3);padding:24px'><div style='margin-bottom:6px'>No trade history found</div><div style='font-size:11px'>Connect Kraken API in Settings to see your real trades</div></td></tr>";
+    return;
+  }
   var html = "";
   krakenTrades.forEach(function(t) {
     var side = (t.type||"").toUpperCase();
@@ -954,6 +967,244 @@ function renderKrakenTrades() {
     html += "</tr>";
   });
   el.innerHTML = html;
+  // After rendering, compute stats and update all stat displays
+  var stats = computeKrakenStats();
+  if (stats) updateStatDisplays(stats);
+}
+
+// ─── KRAKEN STATS ENGINE ──────────────────────────────────────────────────────
+function computeKrakenStats() {
+  if (!krakenTrades.length) return null;
+  var now = Date.now() / 1000;
+  var sevenDaysAgo = now - (7 * 86400);
+
+  // 7-day subset
+  var trades7d = krakenTrades.filter(function(t){ return t.time >= sevenDaysAgo; });
+
+  // 7d net flow: sells received minus buys spent minus fees
+  var buyCost7d = 0, sellRev7d = 0, fees7d = 0;
+  trades7d.forEach(function(t) {
+    var cost = parseFloat(t.cost) || 0;
+    var fee  = parseFloat(t.fee)  || 0;
+    fees7d += fee;
+    if (t.type === "buy")  buyCost7d  += cost;
+    else                   sellRev7d  += cost;
+  });
+  var netFlow7d = sellRev7d - buyCost7d - fees7d;
+
+  // All-time totals
+  var totalFees = 0;
+  var allBuyCost = 0, allSellRev = 0;
+  krakenTrades.forEach(function(t) {
+    totalFees += (parseFloat(t.fee) || 0);
+    if (t.type === "buy") allBuyCost += (parseFloat(t.cost) || 0);
+    else                  allSellRev += (parseFloat(t.cost) || 0);
+  });
+
+  // Win rate: group by pair, compare avg sell vs avg buy price
+  var pairGroups = {};
+  krakenTrades.forEach(function(t) {
+    var pair = t.pair || "Unknown";
+    if (!pairGroups[pair]) pairGroups[pair] = {buyPrices:[], sellPrices:[], buyCount:0, sellCount:0, totalCost:0};
+    var price = parseFloat(t.price) || 0;
+    var cost  = parseFloat(t.cost)  || 0;
+    pairGroups[pair].totalCost += cost;
+    if (t.type === "buy") { pairGroups[pair].buyPrices.push(price); pairGroups[pair].buyCount++; }
+    else                  { pairGroups[pair].sellPrices.push(price); pairGroups[pair].sellCount++; }
+  });
+
+  var totalSells = 0, winningSells = 0;
+  var pairStats = [];
+  var totalCostAllPairs = 0;
+  Object.keys(pairGroups).forEach(function(pair) {
+    var g = pairGroups[pair];
+    totalCostAllPairs += g.totalCost;
+    var avgBuy  = g.buyPrices.length  ? g.buyPrices.reduce(function(s,v){return s+v;},0)  / g.buyPrices.length  : 0;
+    var avgSell = g.sellPrices.length ? g.sellPrices.reduce(function(s,v){return s+v;},0) / g.sellPrices.length : 0;
+    var minPaired = Math.min(g.buyCount, g.sellCount);
+    if (minPaired > 0) {
+      totalSells += minPaired;
+      if (avgBuy > 0 && avgSell > avgBuy) winningSells += minPaired;
+    }
+    var wr = (minPaired > 0 && avgBuy > 0) ? Math.round((avgSell > avgBuy ? 1 : 0) * 100) : null;
+    pairStats.push({pair:pair, count:g.buyCount+g.sellCount, buys:g.buyCount, sells:g.sellCount, winRate:wr, totalCost:g.totalCost});
+  });
+  pairStats.sort(function(a,b){ return b.count - a.count; });
+
+  var winRate = totalSells > 0 ? Math.round(winningSells / totalSells * 100) : null;
+
+  // Concentration: top pair's cost as % of total
+  var topPairCost = pairStats.length ? pairStats[0].totalCost : 0;
+  var concentration = totalCostAllPairs > 0 ? Math.round(topPairCost / totalCostAllPairs * 100) : 0;
+
+  // Buy/sell balance: what % of trades were buys
+  var totalAll = krakenTrades.length;
+  var buysAll  = krakenTrades.filter(function(t){ return t.type === "buy"; }).length;
+  var buyBalance = totalAll > 0 ? Math.round(buysAll / totalAll * 100) : 50;
+
+  // Fee drag: fees as % of total volume traded
+  var feeDrag = (allBuyCost + allSellRev) > 0
+    ? Math.round(totalFees / (allBuyCost + allSellRev) * 100 * 10) / 10
+    : 0;
+
+  // Risk level: based on concentration + 7d net flow
+  var riskLevel, riskColor;
+  if (concentration >= 80) { riskLevel = "High";   riskColor = "var(--red)"; }
+  else if (concentration >= 50) { riskLevel = "Medium"; riskColor = "var(--amber)"; }
+  else { riskLevel = "Low";    riskColor = "var(--green)"; }
+
+  return {
+    total:         totalAll,
+    trades7d:      trades7d.length,
+    netFlow7d:     netFlow7d,
+    winRate:       winRate,
+    concentration: concentration,
+    buyBalance:    buyBalance,
+    feeDrag:       feeDrag,
+    riskLevel:     riskLevel,
+    riskColor:     riskColor,
+    pairStats:     pairStats,
+    totalFees:     totalFees
+  };
+}
+
+function updateStatDisplays(stats) {
+  if (!stats) return;
+
+  // ── Dashboard Win Rate card ──
+  var wr = document.getElementById("dash-win-rate");
+  var wc = document.getElementById("dash-trade-count");
+  if (wr) wr.textContent = stats.winRate !== null ? stats.winRate + "%" : "—";
+  if (wc) wc.textContent = stats.total + " trades (Kraken live)";
+
+  // ── Risk Manager ──
+  var rl = document.getElementById("risk-level");
+  var rls = document.getElementById("risk-level-sub");
+  if (rl) { rl.textContent = stats.riskLevel; rl.style.color = stats.riskColor; }
+  if (rls) rls.textContent = stats.concentration + "% top pair";
+
+  var nf = document.getElementById("risk-netflow");
+  var nfs = document.getElementById("risk-netflow-sub");
+  if (nf) {
+    var sign = stats.netFlow7d >= 0 ? "+" : "";
+    nf.textContent = sign + "$" + Math.abs(stats.netFlow7d).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    nf.className = "mc-val " + (stats.netFlow7d >= 0 ? "up" : "dn");
+  }
+  if (nfs) nfs.textContent = stats.trades7d + " trades this week";
+
+  var rwr = document.getElementById("risk-winrate");
+  var rwrs = document.getElementById("risk-winrate-sub");
+  if (rwr) rwr.textContent = stats.winRate !== null ? stats.winRate + "%" : "—";
+  if (rwrs) rwrs.textContent = "Across " + stats.total + " trades";
+
+  // Breakdown bars
+  var rbConc = document.getElementById("rb-concentration");
+  var rbConcV = document.getElementById("rb-concentration-val");
+  if (rbConc) rbConc.style.width = Math.min(100, stats.concentration) + "%";
+  if (rbConc) rbConc.style.background = stats.concentration >= 80 ? "#ef4444" : stats.concentration >= 50 ? "#f59e0b" : "#22c55e";
+  if (rbConcV) { rbConcV.textContent = stats.concentration + "%"; rbConcV.style.color = stats.concentration >= 80 ? "var(--red)" : stats.concentration >= 50 ? "var(--amber)" : "var(--green)"; }
+
+  var rbBal = document.getElementById("rb-balance");
+  var rbBalV = document.getElementById("rb-balance-val");
+  if (rbBal) rbBal.style.width = stats.buyBalance + "%";
+  if (rbBalV) rbBalV.textContent = stats.buyBalance + "% buys";
+
+  var rbFee = document.getElementById("rb-fee");
+  var rbFeeV = document.getElementById("rb-fee-val");
+  var feePct = Math.min(100, stats.feeDrag * 10);
+  if (rbFee) { rbFee.style.width = feePct + "%"; rbFee.style.background = feeDragColor(stats.feeDrag); }
+  if (rbFeeV) { rbFeeV.textContent = stats.feeDrag.toFixed(1) + "%"; rbFeeV.style.color = feeDragColor(stats.feeDrag); }
+
+  var rkSum = document.getElementById("risk-kraken-summary");
+  if (rkSum) {
+    rkSum.style.display = "block";
+    rkSum.innerHTML = "Total fees paid: <strong>$" + stats.totalFees.toFixed(2) + "</strong> · " + stats.pairStats.length + " pairs traded";
+  }
+
+  // ── Sniper Bot stats ──
+  var bp = document.getElementById("bot-pnl");
+  var bps = document.getElementById("bot-pnl-sub");
+  var bt = document.getElementById("bot-trades7d");
+  var bwr = document.getElementById("bot-win-rate");
+  var btt = document.getElementById("bot-total-trades");
+  if (bp) {
+    var sign = stats.netFlow7d >= 0 ? "+" : "";
+    bp.textContent = sign + "$" + Math.abs(stats.netFlow7d).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    bp.className = "mc-val " + (stats.netFlow7d >= 0 ? "up" : "dn");
+  }
+  if (bps) bps.textContent = "Net 7d flow · Kraken live";
+  if (bt)  bt.textContent  = stats.trades7d || "0";
+  if (bwr) bwr.textContent = stats.winRate !== null ? stats.winRate + "%" : "—";
+  if (btt) btt.textContent = stats.total + " total trades";
+
+  // ── Strategies: pairs list ──
+  var spList = document.getElementById("strat-pairs-list");
+  if (spList && stats.pairStats.length) {
+    var html = "";
+    stats.pairStats.slice(0, 6).forEach(function(p) {
+      var cleanPair = p.pair.replace(/^X/,"").replace(/Z?USD$/,"/USD").replace(/Z?EUR$/,"/EUR");
+      var wrStr = p.winRate !== null ? p.winRate + "%" : "—";
+      var wrColor = p.winRate === null ? "var(--text3)" : p.winRate >= 60 ? "var(--green)" : p.winRate >= 40 ? "var(--amber)" : "var(--red)";
+      html += "<div class='st-row'><div><div class='st-name'>"+cleanPair+"</div><div class='st-meta'>"+p.count+" trades · "+p.buys+"B / "+p.sells+"S</div></div>";
+      html += "<span style='font-family:\"JetBrains Mono\",monospace;font-size:13px;font-weight:600;color:"+wrColor+"'>"+wrStr+"</span></div>";
+    });
+    spList.innerHTML = html;
+  }
+
+  // Rebuild strat chart with real data
+  rebuildStratChart(stats.pairStats);
+  // Rebuild bot chart with real 7d data
+  rebuildBotChart();
+}
+
+function feeDragColor(v) {
+  return v > 1 ? "#ef4444" : v > 0.5 ? "#f59e0b" : "#22c55e";
+}
+
+function rebuildStratChart(pairStats) {
+  if (!pairStats || !pairStats.length) return;
+  var ctx = document.getElementById("stratChart"); if (!ctx) return;
+  // Destroy old chart if exists
+  if (charts.strat) { charts.strat.destroy(); charts.strat = null; }
+  var top = pairStats.slice(0, 5);
+  var labels = top.map(function(p){ return p.pair.replace(/^X/,"").replace(/Z?USD$/,"").replace(/Z?EUR$/,""); });
+  var data   = top.map(function(p){ return p.winRate !== null ? p.winRate : 50; });
+  charts.strat = new Chart(ctx, {type:"bar",data:{labels:labels,datasets:[{data:data,backgroundColor:["rgba(139,92,246,0.7)","rgba(34,197,94,0.6)","rgba(59,130,246,0.6)","rgba(245,158,11,0.6)","rgba(239,68,68,0.5)"],borderRadius:5,label:"Win %"}]},options:Object.assign(JSON.parse(JSON.stringify(CO)),{plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#454d6a",font:{size:11}},grid:{display:false},border:{display:false}},y:{min:0,max:100,ticks:{color:"#454d6a",font:{size:11},callback:function(v){return v+"%"}},grid:{color:"rgba(255,255,255,0.025)"},border:{display:false}}}})});
+}
+
+function rebuildBotChart() {
+  var ctx = document.getElementById("botChart"); if (!ctx) return;
+  if (charts.bot) { charts.bot.destroy(); charts.bot = null; }
+  if (!krakenTrades.length) { initBotChart(); return; }
+
+  // Build daily P&L for last 7 days
+  var days = [];
+  var now = new Date();
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date(now); d.setDate(d.getDate() - i);
+    days.push({ label: d.toLocaleDateString("en-US",{weekday:"short"}), ts: d.getTime() / 1000, sell:0, buy:0 });
+  }
+  krakenTrades.forEach(function(t) {
+    var cost = parseFloat(t.cost) || 0;
+    var fee  = parseFloat(t.fee)  || 0;
+    for (var i = 0; i < days.length - 1; i++) {
+      if (t.time >= days[i].ts && t.time < days[i+1].ts) {
+        if (t.type === "sell") days[i].sell += cost - fee;
+        else                   days[i].buy  += cost + fee;
+        break;
+      }
+    }
+    // last bucket
+    var last = days[days.length - 1];
+    if (t.time >= last.ts) {
+      if (t.type === "sell") last.sell += cost - fee;
+      else                   last.buy  += cost + fee;
+    }
+  });
+  var labels = days.map(function(d){ return d.label; });
+  var data   = days.map(function(d){ return parseFloat((d.sell - d.buy).toFixed(2)); });
+  var colors = data.map(function(v){ return v >= 0 ? "rgba(34,197,94,0.65)" : "rgba(239,68,68,0.55)"; });
+  charts.bot = new Chart(ctx, {type:"bar",data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderRadius:5}]},options:JSON.parse(JSON.stringify(CO))});
 }
 
 // ─── STATIC DATA ─────────────────────────────────────────────────────────────
@@ -1025,6 +1276,13 @@ function setMode(mode) {
 
   var msg = mode === "live" ? "🟢 Live Trading activated" : mode === "sim" ? "🔵 Simulation mode activated" : "⛔ Bot stopped";
   showToast(msg);
+
+  // Update bot status display on Sniper tab
+  var bst = document.getElementById("bot-status");
+  if (bst) {
+    bst.textContent = mode === "live" ? "Live" : mode === "sim" ? "Sim" : "Idle";
+    bst.style.color = mode === "live" ? "var(--green)" : mode === "sim" ? "#60a5fa" : "var(--text3)";
+  }
 }
 
 function showToast(msg) {
@@ -1435,14 +1693,59 @@ function renderHomeSF() {
   el.innerHTML=html;
 }
 function renderRecentTrades() {
-  var el=document.getElementById("recentTrades"); if(!el) return; var html="";
-  for(var i=0;i<TRADES.length;i++){var t=TRADES[i];html+="<div class=\"trade-item\"><span class=\"trade-side "+t.side+"\">"+t.side.toUpperCase()+"</span><div><div class=\"trade-pair\">"+t.pair+"</div><div class=\"trade-strat\">"+t.strat+"</div></div><div class=\"trade-price\">"+t.price+"<div class=\"trade-detail\">"+t.detail+"</div></div><div class=\"trade-pnl "+(t.pnl.charAt(0)==="-"?"neg":"pos")+"\">"+t.pnl+"</div></div>";}
-  el.innerHTML=html;
+  var el = document.getElementById("recentTrades"); if (!el) return;
+  // Use real Kraken trades if available
+  if (krakenTrades.length > 0) {
+    var html = "";
+    var recent = krakenTrades.slice(0, 5);
+    recent.forEach(function(t) {
+      var side = (t.type || "buy").toLowerCase();
+      var pair = (t.pair || "").replace(/^X/,"").replace(/^Z/,"").replace(/ZUSD$/,"/USD").replace(/ZEUR$/,"/EUR").replace(/USD$/,"/USD").replace(/EUR$/,"/EUR");
+      if (pair.indexOf("/") === -1) pair = t.pair || "—"; // fallback to raw
+      var price = parseFloat(t.price) || 0;
+      var cost  = parseFloat(t.cost)  || 0;
+      var vol   = parseFloat(t.vol)   || 0;
+      var priceStr  = "$" + fP(price);
+      var detailStr = vol.toFixed(6) + " · $" + cost.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) + " cost";
+      var timeAgo   = timeAgoStr(t.time);
+      html += "<div class=\"trade-item\">";
+      html += "<span class=\"trade-side " + side + "\">" + side.toUpperCase() + "</span>";
+      html += "<div><div class=\"trade-pair\">" + pair + "</div><div class=\"trade-strat\">Kraken · " + timeAgo + "</div></div>";
+      html += "<div class=\"trade-price\">" + priceStr + "<div class=\"trade-detail\">" + detailStr + "</div></div>";
+      html += "<div class=\"trade-pnl\" style=\"color:var(--text3);font-size:11px\">live</div>";
+      html += "</div>";
+    });
+    el.innerHTML = html;
+  } else {
+    // No Kraken data — show empty state
+    el.innerHTML = "<div style='padding:20px;text-align:center;color:var(--text3);font-size:13px'><div style='margin-bottom:6px'>No trades yet</div><div style='font-size:11px'>Connect Kraken in Settings to see your recent trades</div></div>";
+  }
+}
+
+function timeAgoStr(unixTs) {
+  var diff = Math.floor(Date.now() / 1000 - unixTs);
+  if (diff < 60)   return diff + "s ago";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  return Math.floor(diff / 86400) + "d ago";
 }
 function renderWhales() {
-  var el=document.getElementById("whaleList"); if(!el) return; var html="";
-  for(var i=0;i<WHALES.length;i++){var w=WHALES[i];html+="<div class=\"trade-item\"><div style=\"width:32px;height:32px;border-radius:8px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:"+(w.t==="BUY"?"var(--gdim)":"var(--rdim)")+";color:"+(w.t==="BUY"?"var(--green)":"var(--red)")+"\">"+w.t+"</div><div><div style=\"font-size:13px;font-weight:600\">"+w.p+"</div><div style=\"font-size:11px;color:var(--text3)\">"+w.m+" · "+w.x+"</div></div><div style=\"margin-left:auto;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace\" class=\""+(w.t==="BUY"?"up":"dn")+"\">"+w.a+"</div></div>";}
-  el.innerHTML=html;
+  var el = document.getElementById("whaleList"); if (!el) return;
+  if (!WHALES.length) { el.innerHTML = "<div style='color:var(--text3);font-size:13px;padding:12px 0'>Waiting for price data…</div>"; return; }
+  var html = "";
+  for (var i = 0; i < WHALES.length; i++) {
+    var w = WHALES[i];
+    var bg    = w.t === "BUY" ? "var(--gdim)"   : "var(--rdim)";
+    var color = w.t === "BUY" ? "var(--green)"  : "var(--red)";
+    html += "<div class='trade-item'>";
+    html += "<div style='width:32px;height:32px;border-radius:8px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:"+bg+";color:"+color+"'>"+w.t+"</div>";
+    html += "<div><div style='font-size:13px;font-weight:600'>"+w.p+"</div>";
+    html += "<div style='font-size:11px;color:var(--text3)'>"+w.m+" · "+w.x+" · <em>est.</em></div></div>";
+    html += "<div style='margin-left:auto;text-align:right'><div style='font-size:13px;font-weight:700;font-family:\"JetBrains Mono\",monospace' class='"+(w.t==="BUY"?"up":"dn")+"'>"+w.a+"</div>";
+    html += "<div style='font-size:10px;color:var(--text3)'>~0.1% vol</div></div>";
+    html += "</div>";
+  }
+  el.innerHTML = html;
 }
 function renderMLSignals() {
   var el=document.getElementById("mlSignals"); if(!el) return; var html="";
@@ -1656,7 +1959,7 @@ function buildMLSignals() {
   renderHomeSF();
 }
 
-// ─── WHALE ACTIVITY (derived from live CoinGecko volume data) ─────────────────
+// ─── WHALE ACTIVITY (volume-derived estimates from live CoinGecko data) ───────
 function buildWhaleActivity() {
   if (!momData.length) return;
   var exchanges = ["Kraken","Binance","Coinbase","OKX","Bybit","Huobi"];
@@ -1677,14 +1980,24 @@ function buildWhaleActivity() {
   }
   WHALES = whales;
   renderWhales();
-  // Update net whale flow card
-  var net = whales.reduce(function(sum, w){
+  // Compute net and update whale stats (using IDs added to HTML)
+  var netVal = 0;
+  var buysCount = 0, sellsCount = 0;
+  whales.forEach(function(w){
     var v = parseFloat(w.a.replace(/[^0-9.]/g,""));
     var m = w.a.indexOf("M") > -1 ? 1e6 : 1000;
-    return sum + (w.t === "BUY" ? v * m : -v * m);
-  }, 0);
-  var flowEl = document.querySelector(".mc-val.up[style*='font-size:20px']");
-  if (flowEl) { flowEl.textContent = (net >= 0 ? "+" : "-") + "$" + Math.abs(net / 1e6).toFixed(1) + "M"; flowEl.className = "mc-val " + (net >= 0 ? "up" : "dn"); }
+    if (w.t === "BUY") { netVal += v * m; buysCount++; }
+    else               { netVal -= v * m; sellsCount++; }
+  });
+  var wBuys = document.getElementById("whale-buys");
+  var wSells = document.getElementById("whale-sells");
+  var wNet  = document.getElementById("whale-net");
+  if (wBuys)  wBuys.textContent  = buysCount;
+  if (wSells) wSells.textContent = sellsCount;
+  if (wNet) {
+    wNet.textContent  = (netVal >= 0 ? "+" : "-") + "$" + Math.abs(netVal / 1e6).toFixed(1) + "M";
+    wNet.className    = "mc-val " + (netVal >= 0 ? "up" : "dn");
+  }
 }
 
 // ─── PERF CHART: real BTC 7d OHLC from CoinGecko ─────────────────────────────
@@ -1716,8 +2029,19 @@ function _initPerfChartStatic(){
 // ─── CHARTS (other static charts) ────────────────────────────────────────────
 var CO={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#454d6a",font:{size:11},maxRotation:0},grid:{display:false},border:{display:false}},y:{ticks:{color:"#454d6a",font:{size:11}},grid:{color:"rgba(255,255,255,0.025)"},border:{display:false}}}};
 function initPortfolioChart(){var ctx=document.getElementById("portfolioChart");if(!ctx||charts.portfolio)return;charts.portfolio=new Chart(ctx,{type:"line",data:{labels:["Sep","Oct","Nov","Dec","Jan","Feb","Mar"],datasets:[{data:[108000,114000,110000,122000,130000,136000,142840],borderColor:"#8b5cf6",borderWidth:2,pointRadius:4,pointBackgroundColor:"#8b5cf6",tension:0.35,fill:true,backgroundColor:"rgba(139,92,246,0.07)"},{data:[108000,108000,108000,108000,108000,108000,108000],borderColor:"rgba(255,255,255,0.1)",borderWidth:1,borderDash:[4,4],pointRadius:0}]},options:JSON.parse(JSON.stringify(CO))});}
-function initStratChart(){var ctx=document.getElementById("stratChart");if(!ctx||charts.strat)return;charts.strat=new Chart(ctx,{type:"bar",data:{labels:["Mom.Long","DCA","Whale","RSI Rev."],datasets:[{data:[68,54,71,62],backgroundColor:["rgba(139,92,246,0.7)","rgba(139,92,246,0.5)","rgba(139,92,246,0.6)","rgba(139,92,246,0.4)"],borderRadius:5}]},options:JSON.parse(JSON.stringify(CO))});}
-function initBotChart(){var ctx=document.getElementById("botChart");if(!ctx||charts.bot)return;charts.bot=new Chart(ctx,{type:"bar",data:{labels:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],datasets:[{data:[820,640,1140,960,1380,1640,1840],backgroundColor:"rgba(34,197,94,0.65)",borderRadius:5}]},options:JSON.parse(JSON.stringify(CO))});}
+function initStratChart() {
+  if (krakenTrades.length > 0) {
+    var stats = computeKrakenStats();
+    if (stats) { updateStatDisplays(stats); return; }
+  }
+  var ctx = document.getElementById("stratChart"); if (!ctx || charts.strat) return;
+  charts.strat = new Chart(ctx, {type:"bar",data:{labels:["Connect","Kraken","to see","real data"],datasets:[{data:[40,0,0,0],backgroundColor:"rgba(139,92,246,0.2)",borderRadius:5}]},options:JSON.parse(JSON.stringify(CO))});
+}
+function initBotChart() {
+  if (krakenTrades.length > 0) { rebuildBotChart(); return; }
+  var ctx = document.getElementById("botChart"); if (!ctx || charts.bot) return;
+  charts.bot = new Chart(ctx, {type:"bar",data:{labels:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],datasets:[{data:[0,0,0,0,0,0,0],backgroundColor:"rgba(139,92,246,0.2)",borderRadius:5}]},options:JSON.parse(JSON.stringify(CO))});
+}
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 renderTicker();
@@ -1812,6 +2136,21 @@ function confirmSnipe() {
 
   var krakenPair = KRAKEN_PAIRS[_snipeSym] || _snipeSym;
   var volume     = (usd / d.price).toFixed(8);
+
+  // ── SIM MODE: simulate without calling Kraken ────────────────────────────
+  if (botMode === "sim") {
+    st.className = "modal-status show spin"; st.textContent = "Simulating " + _snipeSide.toUpperCase() + " order…";
+    btn.disabled = true;
+    setTimeout(function() {
+      btn.disabled = false;
+      var simTx = "SIM-" + Math.random().toString(36).slice(2,10).toUpperCase();
+      st.className = "modal-status show ok";
+      st.textContent = "✓ [SIM] " + _snipeSide.toUpperCase() + " " + volume + " " + _snipeSym.replace("/USD","") + " @ $" + fP(d.price) + " · TX: " + simTx;
+      showToast("🔵 Simulated order — no real trade placed");
+    }, 800 + Math.random() * 500);
+    return;
+  }
+
   st.className = "modal-status show spin"; st.textContent = "Placing " + _snipeSide.toUpperCase() + " order…";
   btn.disabled = true;
 
