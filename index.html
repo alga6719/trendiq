@@ -935,6 +935,8 @@ function onPricesLoaded() {
   if (ml) ml.textContent = "Updated " + new Date().toLocaleTimeString();
   var tab = document.getElementById("dtab-momentum");
   if (tab && tab.classList.contains("active")) { renderMomTopCards(); renderMomTable(); renderMomAI(); }
+  // Re-render Kraken balance now that prices are available (Kraken often responds before CoinGecko)
+  if (Object.keys(krakenBalance).length) renderKrakenBalance();
 }
 
 function updateDashPrices() {
