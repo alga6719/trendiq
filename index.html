@@ -701,29 +701,50 @@ async function kProxy(endpoint, params) {
 async function fetchKraken() {
   var statusEl = document.getElementById("kr-status");
   if (statusEl) { statusEl.textContent = "Syncing…"; statusEl.className = "badge ba"; }
+  var anyError = null;
 
+  // Each call is independent — one failure won't block Balance from showing.
   try {
     var balRes = await kProxy("/0/private/Balance");
     if (balRes.result) { krakenBalance = balRes.result; renderKrakenBalance(); }
+  } catch(e) {
+    console.warn("Kraken Balance error:", e.message);
+    anyError = "Balance: " + e.message;
+  }
 
+  try {
     var ordRes = await kProxy("/0/private/OpenOrders");
     if (ordRes.result && ordRes.result.open) {
       krakenOrders = Object.values(ordRes.result.open);
       renderKrakenOrders();
     }
+  } catch(e) {
+    console.warn("Kraken OpenOrders error:", e.message);
+    anyError = anyError || ("OpenOrders: " + e.message);
+  }
 
-    var trdRes = await kProxy("/0/private/TradesHistory", {trades: true});
+  try {
+    var trdRes = await kProxy("/0/private/TradesHistory", {trades: "true"});
     if (trdRes.result && trdRes.result.trades) {
       krakenTrades = Object.values(trdRes.result.trades)
         .sort(function(a,b){ return b.time - a.time; }).slice(0, 20);
       renderKrakenTrades();
     }
-
-    if (statusEl) { statusEl.textContent = "Connected"; statusEl.className = "badge bg"; }
-
   } catch(e) {
-    console.warn("Kraken error:", e);
-    if (statusEl) { statusEl.textContent = "Error: " + e.message.slice(0,40); statusEl.className = "badge br"; }
+    console.warn("Kraken TradesHistory error:", e.message);
+    anyError = anyError || ("TradesHistory: " + e.message);
+  }
+
+  if (statusEl) {
+    if (anyError) {
+      // Show connected if we at least got balance; note the partial error in console
+      var gotBal = Object.keys(krakenBalance).length > 0;
+      statusEl.textContent = gotBal ? "Connected (partial)" : "Error: " + anyError.slice(0,40);
+      statusEl.className = gotBal ? "badge ba" : "badge br";
+    } else {
+      statusEl.textContent = "Connected";
+      statusEl.className = "badge bg";
+    }
   }
 }
 
