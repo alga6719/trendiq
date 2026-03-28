@@ -403,6 +403,7 @@ button,input,select,textarea{font-family:inherit}
         <div id="snav-history" class="nav-item" onclick="showDash('history',this)"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Trade History</div>
         <div id="snav-watchlist" class="nav-item" onclick="showDash('watchlist',this)"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/></svg>Watchlist</div>
         <div id="snav-sniper" class="nav-item" onclick="showDash('sniper',this)"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Sniper Bot</div>
+        <div id="snav-solsniper" class="nav-item" onclick="showDash('solsniper',this)"><svg viewBox="0 0 16 16" fill="none"><path d="M2 11.5 C4 9 7 7 14 4" stroke="#9945FF" stroke-width="1.6" stroke-linecap="round"/><path d="M2 8 C5 6.5 8 5.5 14 4" stroke="#14F195" stroke-width="1.4" stroke-linecap="round" opacity=".7"/><path d="M2 4.5 C5 5.5 8 6 14 4" stroke="#9945FF" stroke-width="1.2" stroke-linecap="round" opacity=".5"/></svg><span style="color:#14F195;font-weight:600">Sol</span> Sniper</div>
         <div class="nav-sep"></div>
         <div id="snav-settings" class="nav-item" onclick="showDash('settings',this)"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Settings</div>
       </div>
@@ -697,6 +698,69 @@ button,input,select,textarea{font-family:inherit}
             <div class="card"><div class="card-h" style="margin-bottom:14px">Daily P&amp;L (7d)</div><div style="position:relative;height:180px"><canvas id="botChart"></canvas></div></div>
           </div>
         </div>
+        <!-- ══════ SOLANA SNIPER TAB ══════ -->
+        <div id="dtab-solsniper" class="db-tab">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div class="card-h" style="display:flex;align-items:center;gap:8px">
+                <span style="color:#14F195">◎</span> Solana New-Token Sniper
+              </div>
+              <div style="font-size:12px;color:var(--text3);margin-top:3px">Scans Pump.fun &amp; GeckoTerminal for new launches · auto-refreshes every 15s</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(20,241,149,0.15);color:#14F195" id="sol-live-badge">SCANNING</span>
+              <button class="db-btn" onclick="fetchSolTokens(true)" id="sol-refresh-btn">Refresh</button>
+            </div>
+          </div>
+
+          <!-- Config card -->
+          <div class="card" style="margin-bottom:14px">
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">Scanner Config</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
+              <div>
+                <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">MIN LIQUIDITY (USD)</label>
+                <input class="fld" id="sol-min-liq" type="number" value="5000" min="0" style="margin-bottom:0">
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">MAX AGE (minutes)</label>
+                <input class="fld" id="sol-max-age" type="number" value="30" min="1" max="1440" style="margin-bottom:0">
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:5px">MIN FDV (USD)</label>
+                <input class="fld" id="sol-min-fdv" type="number" value="10000" min="0" style="margin-bottom:0">
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--text2)">
+                <input type="checkbox" id="sol-alert-tog" style="accent-color:#14F195" onchange="saveSolConfig()">
+                Toast alert on new match
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--text2)">
+                <input type="checkbox" id="sol-notif-tog" style="accent-color:#14F195" onchange="saveSolConfig();requestSolNotif()">
+                Browser notification
+              </label>
+              <button class="db-btn" onclick="fetchSolTokens(true)" style="margin-left:auto;font-size:11px;padding:4px 10px;color:#14F195;border-color:rgba(20,241,149,0.3)">Apply Filters</button>
+            </div>
+            <!-- Risk notice -->
+            <div style="margin-top:12px;padding:10px 12px;background:var(--adim);border:1px solid rgba(245,158,11,0.2);border-radius:7px;font-size:11px;color:var(--amber);line-height:1.65">
+              ⚠️ <strong>High-risk territory:</strong> The vast majority of new Solana tokens are scams, honeypots, or rugpulls. Always verify on <a href="https://rugcheck.xyz" target="_blank" style="color:var(--amber)">RugCheck</a> before buying.
+              True same-block execution requires <strong>Jito bundles + a dedicated backend server</strong> — this scanner delivers sub-second alerts for manual execution via Jupiter/Raydium.
+            </div>
+          </div>
+
+          <!-- Token feed -->
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-size:14px;font-weight:600">New Token Feed <span style="font-size:12px;color:var(--text3);font-weight:400" id="sol-feed-count"></span></div>
+              <div style="font-size:11px;color:var(--text3)" id="sol-last-update">Waiting…</div>
+            </div>
+            <div id="sol-feed" style="display:flex;flex-direction:column;gap:0">
+              <div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Scanning Pump.fun &amp; GeckoTerminal…</div>
+            </div>
+          </div>
+        </div>
+        <!-- ══════ /SOLANA SNIPER TAB ══════ -->
+
         <div id="dtab-settings" class="db-tab">
           <div class="card-h" style="margin-bottom:20px">Settings</div>
           <div class="g2">
@@ -1741,6 +1805,7 @@ function showDash(tab,el) {
     if(tab==="portfolio")  { initPortfolioChart(); fetchKraken(); }
     if(tab==="history")    { fetchKraken(); if(krakenTrades.length){ populatePairFilter(); var ce=document.getElementById("hist-count");if(ce)ce.textContent=krakenTrades.length+" trades"; } }
     if(tab==="settings")   { initSettingsTab(); }
+    if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
     if(tab==="strategies") { initStratChart(); renderStrategiesList(); }
     if(tab==="sniper")     { initBotChart(); }
     if(tab==="momentum")   {
@@ -2721,6 +2786,207 @@ function renderStrategiesList() {
     html += "</div>";
   });
   el.innerHTML = html;
+}
+
+// ─── SOLANA NEW-TOKEN SNIPER ──────────────────────────────────────────────────
+var _solTokens   = [];
+var _solScanLoop = null;
+var _solSeen     = {};    // mint → first-seen ts for dedup alerts
+
+function saveSolConfig() {
+  try {
+    localStorage.setItem("tiq_sol", JSON.stringify({
+      minLiq: document.getElementById("sol-min-liq")?.value  || "5000",
+      maxAge: document.getElementById("sol-max-age")?.value  || "30",
+      minFdv: document.getElementById("sol-min-fdv")?.value  || "10000",
+      alert:  document.getElementById("sol-alert-tog")?.checked,
+      notif:  document.getElementById("sol-notif-tog")?.checked
+    }));
+  } catch(e) {}
+}
+function loadSolConfig() {
+  try {
+    var cfg = JSON.parse(localStorage.getItem("tiq_sol") || "{}");
+    if (cfg.minLiq && document.getElementById("sol-min-liq")) document.getElementById("sol-min-liq").value = cfg.minLiq;
+    if (cfg.maxAge && document.getElementById("sol-max-age")) document.getElementById("sol-max-age").value = cfg.maxAge;
+    if (cfg.minFdv && document.getElementById("sol-min-fdv")) document.getElementById("sol-min-fdv").value = cfg.minFdv;
+    if (cfg.alert  && document.getElementById("sol-alert-tog")) document.getElementById("sol-alert-tog").checked = cfg.alert;
+    if (cfg.notif  && document.getElementById("sol-notif-tog")) document.getElementById("sol-notif-tog").checked = cfg.notif;
+  } catch(e) {}
+}
+function requestSolNotif() {
+  if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission();
+}
+
+async function fetchSolTokens(manual) {
+  var badge  = document.getElementById("sol-live-badge");
+  var lastEl = document.getElementById("sol-last-update");
+  var btn    = document.getElementById("sol-refresh-btn");
+  if (badge) { badge.textContent = "SCANNING"; badge.style.background = "rgba(245,158,11,0.2)"; badge.style.color = "var(--amber)"; }
+  if (btn)   { btn.style.color = "#14F195"; setTimeout(function(){ if(btn) btn.style.color = ""; }, 600); }
+
+  var minLiq  = parseFloat(document.getElementById("sol-min-liq")?.value  || "5000");
+  var maxAgeM = parseFloat(document.getElementById("sol-max-age")?.value  || "30");
+  var minFdv  = parseFloat(document.getElementById("sol-min-fdv")?.value  || "10000");
+  var maxAgeS = maxAgeM * 60;
+  var nowS    = Date.now() / 1000;
+
+  var pools = [];
+
+  // ── Source 1: GeckoTerminal new Solana pools ──
+  try {
+    var r = await fetch("https://api.geckoterminal.com/api/v2/networks/solana/new_pools?include=base_token,dex&page=1", {
+      headers: {"Accept": "application/json;version=20230302"}
+    });
+    if (r.ok) {
+      var d = await r.json();
+      var incl = {};
+      if (d.included) d.included.forEach(function(x){ incl[x.id] = x.attributes; });
+      (d.data || []).forEach(function(pool) {
+        var attr    = pool.attributes || {};
+        var created = attr.pool_created_at ? Date.parse(attr.pool_created_at) / 1000 : 0;
+        var age     = nowS - created;
+        if (!created || age > maxAgeS || age < 0) return;
+        var liq  = parseFloat(attr.reserve_in_usd || 0);
+        var fdv  = parseFloat(attr.fdv_usd  || 0);
+        if (liq < minLiq || (minFdv > 0 && fdv > 0 && fdv < minFdv)) return;
+        var baseRel = (pool.relationships?.base_token?.data?.id || "");
+        var tok     = incl[baseRel] || {};
+        var dexRel  = (pool.relationships?.dex?.data?.id || "");
+        var dexInfo = incl[dexRel] || {};
+        var mint    = baseRel.replace("solana_", "");
+        pools.push({
+          mint:    mint,
+          name:    tok.name    || attr.name || "Unknown",
+          symbol:  tok.symbol  || "???",
+          price:   parseFloat(attr.base_token_price_usd || 0),
+          liq:     liq,
+          fdv:     fdv,
+          vol24:   parseFloat(attr.volume_usd?.h24 || 0),
+          chg5m:   parseFloat(attr.price_change_percentage?.m5 || 0),
+          age:     age,
+          dex:     dexInfo.name || "Raydium",
+          jupUrl:  "https://jup.ag/swap/SOL-" + mint,
+          dexUrl:  "https://dexscreener.com/solana/" + (attr.address || mint),
+          rugUrl:  "https://rugcheck.xyz/tokens/" + mint,
+          source:  "GeckoTerminal"
+        });
+      });
+    }
+  } catch(e) { console.warn("[Sol] GeckoTerminal error:", e); }
+
+  // ── Source 2: DexScreener latest Solana profiles (fallback / supplement) ──
+  if (pools.length < 5) {
+    try {
+      var r2 = await fetch("https://api.dexscreener.com/token-profiles/latest/v1");
+      if (r2.ok) {
+        var d2 = await r2.json();
+        var arr2 = Array.isArray(d2) ? d2 : (d2.data || []);
+        arr2.filter(function(t){ return t.chainId === "solana"; })
+          .slice(0, 30)
+          .forEach(function(t) {
+            var mint = t.tokenAddress || t.address || "";
+            if (!mint || pools.find(function(p){ return p.mint === mint; })) return;
+            pools.push({
+              mint:    mint,
+              name:    t.header    || t.description || "Unknown",
+              symbol:  mint.slice(0,6) + "…",
+              price:   0,
+              liq:     0,
+              fdv:     0,
+              vol24:   0,
+              chg5m:   0,
+              age:     0,
+              dex:     "Solana",
+              jupUrl:  "https://jup.ag/swap/SOL-" + mint,
+              dexUrl:  "https://dexscreener.com/solana/" + mint,
+              rugUrl:  "https://rugcheck.xyz/tokens/" + mint,
+              source:  "DexScreener"
+            });
+          });
+      }
+    } catch(e) { console.warn("[Sol] DexScreener error:", e); }
+  }
+
+  // Sort: newest first (age ascending)
+  pools.sort(function(a, b){ return a.age - b.age; });
+  _solTokens = pools.slice(0, 30);
+
+  // Alert for genuinely new tokens not seen before
+  var alertOn = document.getElementById("sol-alert-tog")?.checked;
+  var notifOn = document.getElementById("sol-notif-tog")?.checked;
+  _solTokens.forEach(function(t) {
+    if (!t.mint || _solSeen[t.mint]) return;
+    _solSeen[t.mint] = Date.now();
+    if (alertOn) showToast("🟢 New Solana token: " + t.symbol + " · $" + fmtSolFdv(t.fdv) + " FDV");
+    if (notifOn && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification("Sol Sniper 🟢", {
+        body: t.name + " (" + t.symbol + ") · FDV $" + fmtSolFdv(t.fdv) + " · Liq $" + fmtSolFdv(t.liq),
+        icon: "/favicon.ico"
+      });
+    }
+  });
+
+  renderSolFeed();
+
+  if (badge) { badge.textContent = "LIVE"; badge.style.background = "rgba(20,241,149,0.15)"; badge.style.color = "#14F195"; }
+  if (lastEl) lastEl.textContent = "Updated " + new Date().toLocaleTimeString() + " · " + _solTokens.length + " tokens";
+  var cntEl = document.getElementById("sol-feed-count");
+  if (cntEl) cntEl.textContent = "· " + _solTokens.length + " matches";
+}
+
+function fmtSolFdv(v) {
+  if (!v || v === 0) return "—";
+  if (v >= 1e9) return "$" + (v/1e9).toFixed(2) + "B";
+  if (v >= 1e6) return "$" + (v/1e6).toFixed(2) + "M";
+  if (v >= 1e3) return "$" + (v/1e3).toFixed(1) + "K";
+  return "$" + v.toFixed(0);
+}
+function fmtSolAge(s) {
+  if (!s) return "just now";
+  if (s < 60) return Math.floor(s) + "s";
+  if (s < 3600) return Math.floor(s/60) + "m";
+  return Math.floor(s/3600) + "h " + Math.floor((s%3600)/60) + "m";
+}
+
+function renderSolFeed() {
+  var el = document.getElementById("sol-feed"); if (!el) return;
+  if (!_solTokens.length) {
+    el.innerHTML = "<div style='padding:24px;text-align:center;color:var(--text3);font-size:13px'>No new tokens match your filters right now.<br><span style='font-size:11px'>Try increasing Max Age or lowering Min Liquidity.</span></div>";
+    return;
+  }
+  var html = "";
+  _solTokens.forEach(function(t, idx) {
+    var ageStr  = fmtSolAge(t.age);
+    var chgCol  = t.chg5m >= 0 ? "var(--green)" : "var(--red)";
+    var chgStr  = t.chg5m ? (t.chg5m >= 0 ? "+" : "") + t.chg5m.toFixed(1) + "%" : "—";
+    var newBadge = t.age < 300 ? "<span style='font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;background:rgba(20,241,149,0.18);color:#14F195;margin-left:6px'>NEW</span>" : "";
+    html += "<div style='display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);flex-wrap:wrap'>";
+    // Left: icon + name
+    html += "<div style='width:34px;height:34px;border-radius:8px;background:rgba(153,69,255,0.15);border:1px solid rgba(153,69,255,0.3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#9945FF;flex-shrink:0'>" + (t.symbol.slice(0,3)||"SOL") + "</div>";
+    html += "<div style='flex:1;min-width:0'>";
+    html += "<div style='font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>" + escHtml(t.name) + " <span style='color:var(--text3);font-weight:400'>(" + escHtml(t.symbol) + ")</span>" + newBadge + "</div>";
+    html += "<div style='font-size:11px;color:var(--text3);margin-top:2px'>";
+    html += t.dex + " · Age: <strong style='color:var(--text2)'>" + ageStr + "</strong>";
+    if (t.liq > 0) html += " · Liq: <strong style='color:var(--text2)'>" + fmtSolFdv(t.liq) + "</strong>";
+    if (t.fdv > 0) html += " · FDV: <strong style='color:var(--text2)'>" + fmtSolFdv(t.fdv) + "</strong>";
+    if (t.chg5m) html += " · 5m: <strong style='color:" + chgCol + "'>" + chgStr + "</strong>";
+    html += "</div></div>";
+    // Right: action buttons
+    html += "<div style='display:flex;gap:6px;flex-shrink:0'>";
+    html += "<a href='" + t.rugUrl + "' target='_blank' class='db-btn' style='font-size:11px;padding:4px 9px;color:var(--amber);border-color:rgba(245,158,11,0.3);text-decoration:none'>🔍 Check</a>";
+    html += "<a href='" + t.dexUrl + "' target='_blank' class='db-btn' style='font-size:11px;padding:4px 9px;text-decoration:none'>Chart</a>";
+    html += "<a href='" + t.jupUrl + "' target='_blank' class='db-btn' style='font-size:11px;padding:4px 9px;color:#14F195;border-color:rgba(20,241,149,0.3);font-weight:600;text-decoration:none'>⚡ Buy on Jup</a>";
+    html += "</div>";
+    html += "</div>";
+  });
+  el.innerHTML = html;
+}
+
+function startSolScanLoop() {
+  if (_solScanLoop) return;  // already running
+  fetchSolTokens(false);
+  _solScanLoop = setInterval(function(){ fetchSolTokens(false); }, 15000);  // scan every 15s
 }
 
 function checkPriceAlerts() {
