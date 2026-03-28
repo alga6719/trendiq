@@ -604,10 +604,30 @@ button,input,select,textarea{font-family:inherit}
           <div class="g2">
             <div class="card">
               <div style="font-size:14px;font-weight:600;margin-bottom:16px">API Connections</div>
-              <div class="st-row"><div><div class="st-name">Kraken</div><div class="st-meta">Live trading</div></div><span class="badge bg">Connected</span></div>
+              <div class="st-row"><div><div class="st-name">Kraken</div><div class="st-meta">Live trading</div></div><span class="badge" id="set-kr-badge">Checking…</span></div>
               <div class="st-row"><div><div class="st-name">CoinGecko</div><div class="st-meta">Live price data</div></div><span class="badge bg">Connected</span></div>
-              <div class="st-row"><div><div class="st-name">OpenAI</div><div class="st-meta">AI signals engine</div></div><span class="badge bg">Connected</span></div>
-              <div style="margin-top:16px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Kraken API Key</label><input class="fld" type="password" value="••••••••••••••••••••" style="margin-bottom:0"></div>
+              <div class="st-row"><div><div class="st-name">Claude AI</div><div class="st-meta">AI chat &amp; signals</div></div><span class="badge bg">Connected</span></div>
+              <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+                <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--text)">Kraken API Credentials</div>
+                <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.05em;margin-bottom:5px">API KEY</label>
+                <div style="position:relative;margin-bottom:10px">
+                  <input class="fld" id="set-kr-key" type="password" placeholder="Paste your Kraken API key" autocomplete="off" style="margin-bottom:0;padding-right:36px">
+                  <button onclick="toggleVis('set-kr-key',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px">👁</button>
+                </div>
+                <label style="display:block;font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.05em;margin-bottom:5px">PRIVATE KEY (SECRET)</label>
+                <div style="position:relative;margin-bottom:14px">
+                  <input class="fld" id="set-kr-secret" type="password" placeholder="Paste your Kraken Private Key" autocomplete="off" style="margin-bottom:0;padding-right:36px">
+                  <button onclick="toggleVis('set-kr-secret',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px">👁</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <button class="btn-purple" style="font-size:12px;padding:7px 18px" onclick="saveKrakenKeys()">Save &amp; Test</button>
+                  <button class="db-btn" style="font-size:12px;padding:7px 14px" onclick="clearKrakenKeys()">Clear Keys</button>
+                  <span id="set-kr-msg" style="font-size:12px;color:var(--text3)"></span>
+                </div>
+                <div style="margin-top:12px;padding:10px 12px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--text3);line-height:1.6">
+                  Keys are stored in your browser only (localStorage) and sent over HTTPS. Make sure your Kraken key has <strong style="color:var(--text2)">Query Funds</strong> and <strong style="color:var(--text2)">Query Open Orders</strong> permissions enabled.
+                </div>
+              </div>
             </div>
             <div class="card">
               <div style="font-size:14px;font-weight:600;margin-bottom:16px">Notifications</div>
@@ -742,11 +762,20 @@ var krakenOrders   = [];
 var krakenTrades   = [];
 
 // Route all Kraken calls through /api/kraken (server-side HMAC signing).
-// Direct browser calls to api.kraken.com are always CORS-blocked.
+// Reads API key + secret from localStorage (set via Settings page) and
+// sends them as request headers; server falls back to env vars if absent.
+function getKrakenHeaders() {
+  var h = {"Content-Type": "application/json"};
+  var k = localStorage.getItem("kr_key");
+  var s = localStorage.getItem("kr_secret");
+  if (k) h["x-kr-key"]    = k;
+  if (s) h["x-kr-secret"] = s;
+  return h;
+}
 async function kProxy(endpoint, params) {
   var r = await fetch("/api/kraken", {
     method:  "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: getKrakenHeaders(),
     body:    JSON.stringify({endpoint: endpoint, params: params || {}})
   });
   var data = await r.json();
@@ -1006,6 +1035,85 @@ function showToast(msg) {
   t._timer = setTimeout(function(){ t.style.opacity = "0"; }, 2200);
 }
 
+// ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
+function initSettingsTab() {
+  // Prefill fields if keys already saved
+  var k = localStorage.getItem("kr_key");
+  var s = localStorage.getItem("kr_secret");
+  var keyEl = document.getElementById("set-kr-key");
+  var secEl = document.getElementById("set-kr-secret");
+  if (keyEl && k) keyEl.value = k;
+  if (secEl && s) secEl.value = s;
+  // Update badge
+  updateKrakenBadge();
+}
+
+function updateKrakenBadge() {
+  var badge = document.getElementById("set-kr-badge");
+  if (!badge) return;
+  var k = localStorage.getItem("kr_key");
+  var s = localStorage.getItem("kr_secret");
+  if (k && s) {
+    badge.textContent = "Keys saved"; badge.className = "badge bg";
+  } else {
+    badge.textContent = "No keys set"; badge.className = "badge br";
+  }
+}
+
+async function saveKrakenKeys() {
+  var k = (document.getElementById("set-kr-key")   ?.value || "").trim();
+  var s = (document.getElementById("set-kr-secret") ?.value || "").trim();
+  var msg = document.getElementById("set-kr-msg");
+  if (!k || !s) {
+    if (msg) { msg.textContent = "⚠ Both fields are required."; msg.style.color = "var(--amber)"; }
+    return;
+  }
+  if (msg) { msg.textContent = "Testing connection…"; msg.style.color = "var(--text3)"; }
+  // Store first so kProxy picks them up
+  localStorage.setItem("kr_key", k);
+  localStorage.setItem("kr_secret", s);
+  // Test by fetching balance
+  try {
+    var res = await kProxy("/0/private/Balance");
+    localStorage.setItem("kr_key", k);
+    localStorage.setItem("kr_secret", s);
+    var assets = Object.keys(res.result || {});
+    if (msg) {
+      msg.textContent = "✓ Connected! " + (assets.length ? assets.slice(0,4).join(", ") : "no assets yet");
+      msg.style.color = "var(--green)";
+    }
+    updateKrakenBadge();
+    showToast("✅ Kraken keys saved & verified");
+    fetchKraken(); // reload portfolio data
+  } catch(e) {
+    localStorage.removeItem("kr_key");
+    localStorage.removeItem("kr_secret");
+    if (msg) { msg.textContent = "✗ " + e.message; msg.style.color = "var(--red,#ef4444)"; }
+    updateKrakenBadge();
+    showToast("❌ Kraken connection failed — check your keys");
+  }
+}
+
+function clearKrakenKeys() {
+  localStorage.removeItem("kr_key");
+  localStorage.removeItem("kr_secret");
+  var keyEl = document.getElementById("set-kr-key");
+  var secEl = document.getElementById("set-kr-secret");
+  if (keyEl) keyEl.value = "";
+  if (secEl) secEl.value = "";
+  var msg = document.getElementById("set-kr-msg");
+  if (msg) { msg.textContent = "Keys cleared."; msg.style.color = "var(--text3)"; }
+  updateKrakenBadge();
+  showToast("🗑 Kraken keys cleared");
+}
+
+function toggleVis(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.type = el.type === "password" ? "text" : "password";
+  btn.textContent = el.type === "password" ? "👁" : "🙈";
+}
+
 function refreshAll() {
   var btn = document.getElementById("btnRefresh");
   if (btn) { btn.style.color = "var(--green)"; setTimeout(function(){ btn.style.color = ""; }, 900); }
@@ -1250,6 +1358,7 @@ function showDash(tab,el) {
     if(tab==="dashboard")  { initPerfChart(); initSentimentGauge(); }
     if(tab==="portfolio")  { initPortfolioChart(); fetchKraken(); }
     if(tab==="history")    { fetchKraken(); }
+    if(tab==="settings")   { initSettingsTab(); }
     if(tab==="strategies") { initStratChart(); }
     if(tab==="sniper")     { initBotChart(); }
     if(tab==="momentum")   {
@@ -1586,6 +1695,7 @@ setTimeout(function(){
   setInterval(fetchFearGreed, 600000);  // refresh fear/greed every 10 min
 },300);
 setTimeout(fetchKraken, 800);  // load Kraken balance on page open (after prices start)
+updateKrakenBadge();           // reflect saved-key state in Settings badge immediately
 
 // ─── SNIPE MODAL ─────────────────────────────────────────────────────────────
 var KRAKEN_PAIRS = {

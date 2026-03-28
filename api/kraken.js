@@ -4,9 +4,8 @@ const https  = require("https");
 const KR_KEY    = process.env.KR_KEY;
 const KR_SECRET = process.env.KR_SECRET;
 
-function krakenSign(path, nonce, postData) {
-  const message      = nonce + postData;
-  const secretBuffer = Buffer.from(KR_SECRET, "base64");
+function krakenSign(path, nonce, postData, secret) {
+  const secretBuffer = Buffer.from(secret, "base64");
   const sha256Hash   = crypto.createHash("sha256").update(nonce + postData).digest();
   const hmac         = crypto.createHmac("sha512", secretBuffer);
   hmac.update(Buffer.from(path));
@@ -14,21 +13,21 @@ function krakenSign(path, nonce, postData) {
   return hmac.digest("base64");
 }
 
-function krakenPost(path, params) {
+function krakenPost(path, params, apiKey, apiSecret) {
   return new Promise((resolve, reject) => {
     // Multiply by 1000 for microsecond precision — prevents EAPI:Invalid nonce
     // when sequential calls land within the same millisecond on Vercel.
     const nonce    = (Date.now() * 1000).toString();
     params.nonce   = nonce;
     const postData = new URLSearchParams(params).toString();
-    const sign     = krakenSign(path, nonce, postData);
+    const sign     = krakenSign(path, nonce, postData, apiSecret);
 
     const options = {
       hostname: "api.kraken.com",
       path,
       method:  "POST",
       headers: {
-        "API-Key":      KR_KEY,
+        "API-Key":      apiKey,
         "API-Sign":     sign,
         "Content-Type": "application/x-www-form-urlencoded",
         "Content-Length": Buffer.byteLength(postData),
@@ -52,7 +51,7 @@ function krakenPost(path, params) {
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-kr-key, x-kr-secret");
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST")    return res.status(405).json({ error: "Method not allowed" });
@@ -60,8 +59,12 @@ module.exports = async (req, res) => {
   const { endpoint, params } = req.body || {};
   if (!endpoint) return res.status(400).json({ error: "Missing endpoint" });
 
-  if (!KR_KEY || !KR_SECRET) {
-    return res.status(503).json({ error: "Kraken API credentials not configured" });
+  // Allow client-provided keys (from Settings page) to override env vars
+  const useKey    = req.headers["x-kr-key"]    || KR_KEY;
+  const useSecret = req.headers["x-kr-secret"] || KR_SECRET;
+
+  if (!useKey || !useSecret) {
+    return res.status(503).json({ error: "Kraken API credentials not configured — add them in Settings" });
   }
 
   const allowed = [
@@ -93,7 +96,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const data = await krakenPost(endpoint, params || {});
+    const data = await krakenPost(endpoint, params || {}, useKey, useSecret);
     // Short log so it is not truncated in Vercel dashboard
     const resKeys = Object.keys(data.result || {}).slice(0,8).join(",") || "(empty)";
     const errStr  = (data.error && data.error.length) ? data.error.join("|") : "none";
