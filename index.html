@@ -743,10 +743,34 @@ button,input,select,textarea{font-family:inherit}
             </div>
           </div>
 
+          <!-- Server Bot Status -->
+          <div class="card" style="margin-bottom:14px;border-color:rgba(139,92,246,0.25)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:14px;font-weight:600">☁ Server Bot</span>
+                <span id="srv-bot-badge" style="font-size:10px;padding:2px 9px;border-radius:20px;background:var(--bg3);color:var(--text3)">Checking…</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn-purple" style="font-size:11px;padding:4px 12px" onclick="runServerCycleNow()">▶ Run Now</button>
+                <button class="db-btn"     style="font-size:11px;padding:4px 10px"  onclick="refreshServerStatus()">↻ Refresh</button>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:10px">
+              The server bot runs on Vercel's servers — <strong style="color:var(--text2)">no browser needed</strong>. It reads your strategies and mode from the cloud and executes trades even when this tab is closed. Cron fires every minute (Pro plan) or use <strong style="color:var(--text2)">Run Now</strong> to trigger manually.
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">
+              <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">LAST SERVER RUN</div><div id="srv-last-run" style="font-size:12px;color:var(--text2)">—</div></div>
+              <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">SERVER MODE</div><div id="srv-mode" style="font-size:12px;color:var(--text2)">—</div></div>
+              <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">STRATEGIES ON SERVER</div><div id="srv-strats" style="font-size:12px;color:var(--text2)">—</div></div>
+              <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">OPEN POSITIONS</div><div id="srv-positions" style="font-size:12px;color:var(--text2)">—</div></div>
+            </div>
+            <div id="srv-bot-log" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);max-height:120px;overflow-y:auto;line-height:1.8;background:var(--bg3);border-radius:6px;padding:8px 10px;display:none"></div>
+          </div>
+
           <!-- Activity Log -->
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-              <div style="font-size:14px;font-weight:600">Activity Log</div>
+              <div style="font-size:14px;font-weight:600">Browser Activity Log</div>
               <button class="db-btn" onclick="clearBotLog()" style="font-size:10px;padding:3px 8px">Clear</button>
             </div>
             <div id="bot-log" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);max-height:220px;overflow-y:auto;line-height:1.9">
@@ -1554,6 +1578,9 @@ function setMode(mode) {
   } else {
     stopAutoTrader();
   }
+
+  // Sync mode to server so cron job picks it up
+  syncBotModeToServer(mode);
 }
 
 function showToast(msg) {
@@ -1623,6 +1650,13 @@ async function saveKrakenKeys() {
     updateKrakenBadge();
     showToast("✅ Kraken keys saved & verified");
     fetchKraken(); // reload portfolio data
+    // Also save keys to server so the cron bot can use them for live trading
+    fetch("/api/bot-config", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "save_keys", key: k, secret: s})
+    }).then(function(){ console.log("[bot-config] Kraken keys synced to server"); })
+      .catch(function(e){ console.warn("[bot-config] key sync failed:", e.message); });
   } catch(e) {
     localStorage.removeItem("kr_key");
     localStorage.removeItem("kr_secret");
@@ -1936,7 +1970,7 @@ function showDash(tab,el) {
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
     if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
     if(tab==="ml")         { renderMLAccuracy(); }
-    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); }
+    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
       else { renderMomTopCards(); renderMomTable(); renderMomAI(); }
@@ -2426,6 +2460,7 @@ setTimeout(fetchKraken, 800);  // load Kraken balance on page open (after prices
 updateKrakenBadge();           // reflect saved-key state in Settings badge immediately
 syncOutcomesFromKV();          // pull trade history from KV cloud (non-blocking)
 loadMLSettings();              // restore ML recalibration settings from localStorage
+refreshServerStatus();         // check server bot status on page load (non-blocking)
 loadPriceAlerts();             // restore saved price alerts from localStorage
 loadStrategies();              // restore saved strategies from localStorage
 
@@ -2779,6 +2814,12 @@ function loadStrategies() {
 }
 function saveStrategies() {
   localStorage.setItem("tiq_strategies", JSON.stringify(_strategies));
+  // Keep server in sync so cron job uses latest strategies
+  fetch("/api/bot-config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({action: "save_strategies", strategies: _strategies})
+  }).catch(function(e){ console.warn("[bot-config] strategy sync:", e.message); });
 }
 
 function openStrategyEditor(idx) {
@@ -3209,6 +3250,7 @@ async function runAutoTraderCycle() {
         await autoExecute(s, "sell", price, closeReason, pos);
         delete _botPositions[posKey];
         saveBotPositions();
+        closePositionOnServer(posKey);
       }
       continue; // one position per strategy at a time
     }
@@ -3266,6 +3308,7 @@ async function autoExecute(strat, side, price, reason, existingPos) {
       mode:       botMode
     };
     saveBotPositions();
+    syncPositionToServer(posKey, _botPositions[posKey]);
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       new Notification("TrendIQ " + (botMode==="live"?"LIVE ":"SIM ") + "BUY · " + strat.pair, {
         body: "@ $" + fP(price) + " · " + reason, icon: "/favicon.ico"
@@ -3828,6 +3871,131 @@ function clearMLData() {
   renderMLSettingsPanel();
   var msg = document.getElementById("ml-set-msg");
   if (msg) { msg.style.color = "var(--text3)"; msg.textContent = "ML data cleared."; }
+}
+
+// ─── SERVER BOT SYNC ─────────────────────────────────────────────────────────
+// Push mode change to server so cron picks it up
+function syncBotModeToServer(mode) {
+  fetch("/api/bot-config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({action: "set_mode", mode: mode})
+  }).then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.ok) {
+        console.log("[bot-config] mode synced to server:", mode);
+        refreshServerStatus();
+      }
+    })
+    .catch(function(e){ console.warn("[bot-config] mode sync failed:", e.message); });
+}
+
+// Push open position to server when bot buys
+function syncPositionToServer(posKey, pos) {
+  fetch("/api/bot-config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      action: "upsert_position",
+      position: {
+        key:        posKey,
+        pair:       pos.pair,
+        entryPrice: pos.entryPrice,
+        entryTime:  pos.entryTime,
+        qty:        pos.qty,
+        amount:     pos.amount,
+        tp:         pos.tp,
+        sl:         pos.sl,
+        mode:       pos.mode,
+        entryScore: pos.entryScore || 0,
+        stratName:  pos.stratName  || ""
+      }
+    })
+  }).catch(function(e){ console.warn("[bot-config] position sync failed:", e.message); });
+}
+
+// Remove closed position from server
+function closePositionOnServer(posKey) {
+  fetch("/api/bot-config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({action: "close_position", key: posKey})
+  }).catch(function(e){ console.warn("[bot-config] close_position failed:", e.message); });
+}
+
+// Fetch server bot status and update the status card in the Sniper tab
+async function refreshServerStatus() {
+  try {
+    var r = await fetch("/api/bot-config");
+    if (!r.ok) return;
+    var d = await r.json();
+
+    var badge    = document.getElementById("srv-bot-badge");
+    var lastRun  = document.getElementById("srv-last-run");
+    var srvMode  = document.getElementById("srv-mode");
+    var srvStrats = document.getElementById("srv-strats");
+    var srvPos   = document.getElementById("srv-positions");
+    var logEl    = document.getElementById("srv-bot-log");
+
+    var enabledCount = (d.strategies || []).filter(function(s){ return s.enabled; }).length;
+    var posCount     = Object.keys(d.positions || {}).length;
+
+    if (badge) {
+      if (d.enabled && d.mode !== "idle") {
+        badge.textContent  = "● " + d.mode.toUpperCase() + " Active";
+        badge.style.background = d.mode === "live" ? "rgba(34,197,94,0.2)" : "rgba(59,130,246,0.2)";
+        badge.style.color      = d.mode === "live" ? "var(--green)" : "#60a5fa";
+      } else {
+        badge.textContent  = "Idle";
+        badge.style.background = "var(--bg3)";
+        badge.style.color      = "var(--text3)";
+      }
+    }
+    if (lastRun)   lastRun.textContent  = d.lastRun ? new Date(d.lastRun).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "Never";
+    if (srvMode)   srvMode.textContent  = d.mode ? d.mode.charAt(0).toUpperCase() + d.mode.slice(1) : "Idle";
+    if (srvStrats) srvStrats.textContent = enabledCount + " enabled / " + (d.strategies || []).length + " total";
+    if (srvPos)    srvPos.textContent    = posCount ? posCount + " open" : "None";
+
+    // Show last log if any
+    if (logEl && d.lastRunLog) {
+      logEl.style.display = "block";
+      logEl.textContent   = d.lastRunLog;
+    }
+
+    // Merge server positions with local display (server-opened positions show up in UI)
+    if (d.positions && Object.keys(d.positions).length) {
+      var merged = Object.assign({}, _botPositions);
+      Object.keys(d.positions).forEach(function(k) {
+        if (!merged[k]) merged[k] = d.positions[k];
+      });
+      _botPositions = merged;
+      saveBotPositions();
+      renderBotPositions();
+    }
+  } catch(e) {
+    console.warn("[bot-config] refreshServerStatus:", e.message);
+  }
+}
+
+// Manually trigger one server bot cycle
+async function runServerCycleNow() {
+  var btn = document.querySelector("[onclick='runServerCycleNow()']");
+  if (btn) { btn.textContent = "Running…"; btn.disabled = true; }
+  try {
+    var r = await fetch("/api/bot", { method: "POST", headers: {"Content-Type":"application/json"}, body: "{}" });
+    var d = await r.json();
+    var logEl = document.getElementById("srv-bot-log");
+    if (logEl && d.log) {
+      logEl.style.display = "block";
+      logEl.textContent   = d.log.join("\n");
+    }
+    showToast("✅ Server bot cycle complete");
+    refreshServerStatus();
+  } catch(e) {
+    showToast("❌ Server cycle failed: " + e.message);
+  } finally {
+    if (btn) { btn.textContent = "▶ Run Now"; btn.disabled = false; }
+  }
 }
 </script>
 

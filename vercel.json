@@ -1,8 +1,15 @@
 {
   "version": 2,
   "functions": {
-    "api/chat.js": { "maxDuration": 30 }
+    "api/chat.js": { "maxDuration": 30 },
+    "api/bot.js":  { "maxDuration": 30 }
   },
+  "crons": [
+    {
+      "path":     "/api/bot",
+      "schedule": "* * * * *"
+    }
+  ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)",     "dest": "/index.html" }
