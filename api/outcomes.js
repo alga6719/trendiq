@@ -1,54 +1,37 @@
-// /api/outcomes.js — Trade outcome persistence via Upstash KV (Redis REST API)
-// GET  /api/outcomes  → returns last 500 outcomes as JSON array
-// POST /api/outcomes  → appends a new outcome, trims list to 500
+// /api/outcomes.js — Trade outcome persistence via Neon Postgres
+// GET  /api/outcomes  → returns last 500 outcomes ordered by timestamp desc
+// POST /api/outcomes  → inserts a new outcome row
 
-const https = require("https");
-const url   = require("url");
+const { Client } = require("pg");
 
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const LIST_KEY = "tiq_outcomes";
-const MAX_ITEMS = 500;
+const DB_URL = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 
-function kvRequest(path, method, bodyObj) {
-  return new Promise((resolve, reject) => {
-    if (!KV_URL || !KV_TOKEN) {
-      return reject(new Error("KV_REST_API_URL / KV_REST_API_TOKEN not set"));
-    }
-    const base    = KV_URL.replace(/\/$/, "");
-    const fullUrl = base + path;
-    const parsed  = url.parse(fullUrl);
-    const body    = bodyObj ? JSON.stringify(bodyObj) : null;
-
-    const opts = {
-      hostname: parsed.hostname,
-      port:     parsed.port || 443,
-      path:     parsed.path,
-      method:   method || "GET",
-      headers: {
-        "Authorization": "Bearer " + KV_TOKEN,
-        "Content-Type":  "application/json",
-      },
-    };
-    if (body) opts.headers["Content-Length"] = Buffer.byteLength(body);
-
-    const req = https.request(opts, (res) => {
-      let data = "";
-      res.on("data", (chunk) => data += chunk);
-      res.on("end", () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.error) return reject(new Error(parsed.error));
-          resolve({ status: res.statusCode, body: parsed });
-        } catch (e) {
-          resolve({ status: res.statusCode, body: data });
-        }
-      });
-    });
-    req.on("error", reject);
-    if (body) req.write(body);
-    req.end();
+async function getClient() {
+  const client = new Client({
+    connectionString: DB_URL,
+    ssl: { rejectUnauthorized: false },
   });
+  await client.connect();
+  return client;
+}
+
+// Create table on first use (idempotent)
+async function ensureTable(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS trade_outcomes (
+      id          SERIAL PRIMARY KEY,
+      pair        TEXT        NOT NULL,
+      entry_score REAL        DEFAULT 0,
+      buy_score   REAL        DEFAULT 0,
+      pnl_pct     REAL        NOT NULL,
+      pnl_usd     REAL        DEFAULT 0,
+      exit_reason TEXT        DEFAULT 'unknown',
+      duration_min INTEGER    DEFAULT 0,
+      ts          BIGINT      NOT NULL,
+      mode        TEXT        DEFAULT 'sim',
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
 }
 
 module.exports = async function handler(req, res) {
@@ -58,57 +41,64 @@ module.exports = async function handler(req, res) {
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  if (!KV_URL || !KV_TOKEN) {
-    return res.status(503).json({ error: "KV not configured" });
+  if (!DB_URL) {
+    return res.status(503).json({ error: "Database not configured" });
   }
 
+  let client;
   try {
-    // ── GET: return stored outcomes ──────────────────────────────────────────
+    client = await getClient();
+    await ensureTable(client);
+
+    // ── GET: return last 500 outcomes ────────────────────────────────────────
     if (req.method === "GET") {
-      const result = await kvRequest(
-        `/lrange/${encodeURIComponent(LIST_KEY)}/0/${MAX_ITEMS - 1}`,
-        "GET"
+      const result = await client.query(
+        `SELECT pair, entry_score AS "entryScore", buy_score AS "buyScore",
+                pnl_pct AS "pnlPct", pnl_usd AS "pnlUsd",
+                exit_reason AS "exitReason", duration_min AS "durationMin",
+                ts AS timestamp, mode
+         FROM trade_outcomes
+         ORDER BY ts DESC
+         LIMIT 500`
       );
-      const raw   = result.body.result || [];
-      const items = raw.map(item => {
-        try { return typeof item === "string" ? JSON.parse(item) : item; }
-        catch(e) { return null; }
-      }).filter(Boolean);
-      return res.status(200).json({ outcomes: items });
+      return res.status(200).json({ outcomes: result.rows });
     }
 
-    // ── POST: append a new outcome ───────────────────────────────────────────
+    // ── POST: insert a new outcome ───────────────────────────────────────────
     if (req.method === "POST") {
       let body = req.body;
       if (typeof body === "string") {
-        try { body = JSON.parse(body); } catch(e) {
-          return res.status(400).json({ error: "Invalid JSON" });
-        }
+        try { body = JSON.parse(body); }
+        catch(e) { return res.status(400).json({ error: "Invalid JSON" }); }
       }
-      if (!body || typeof body !== "object") {
-        return res.status(400).json({ error: "Expected outcome object" });
-      }
-      if (!body.pair || typeof body.pnlPct !== "number") {
+      if (!body || !body.pair || typeof body.pnlPct !== "number") {
         return res.status(400).json({ error: "Missing pair or pnlPct" });
       }
 
-      const item = JSON.stringify({
-        pair:        body.pair,
-        entryScore:  body.entryScore  || 0,
-        buyScore:    body.buyScore    || 0,
-        pnlPct:      body.pnlPct,
-        pnlUsd:      body.pnlUsd      || 0,
-        exitReason:  body.exitReason  || "unknown",
-        durationMin: body.durationMin || 0,
-        timestamp:   body.timestamp   || Date.now(),
-        mode:        body.mode        || "sim",
-      });
+      await client.query(
+        `INSERT INTO trade_outcomes
+           (pair, entry_score, buy_score, pnl_pct, pnl_usd, exit_reason, duration_min, ts, mode)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          body.pair,
+          body.entryScore  || 0,
+          body.buyScore    || 0,
+          body.pnlPct,
+          body.pnlUsd      || 0,
+          body.exitReason  || "unknown",
+          body.durationMin || 0,
+          body.timestamp   || Date.now(),
+          body.mode        || "sim",
+        ]
+      );
 
-      // LPUSH then LTRIM via pipeline
-      await kvRequest("/pipeline", "POST", [
-        ["lpush", LIST_KEY, item],
-        ["ltrim", LIST_KEY, 0, MAX_ITEMS - 1],
-      ]);
+      // Keep only last 500 rows
+      await client.query(
+        `DELETE FROM trade_outcomes
+         WHERE id NOT IN (
+           SELECT id FROM trade_outcomes ORDER BY ts DESC LIMIT 500
+         )`
+      );
 
       return res.status(201).json({ ok: true });
     }
@@ -118,5 +108,7 @@ module.exports = async function handler(req, res) {
   } catch (e) {
     console.error("[outcomes]", e.message);
     return res.status(500).json({ error: e.message });
+  } finally {
+    if (client) await client.end().catch(() => {});
   }
 };
