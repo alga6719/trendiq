@@ -369,7 +369,7 @@ button,input,select,textarea{font-family:inherit}
 <div id="page-login" class="page">
   <div class="auth-shell">
     <div class="auth-left"><div><div class="fl-pill"><span class="fl-dot"></span>Markets are live</div><h2 style="font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1.2;margin-bottom:14px">Your edge in every trade</h2><p style="font-size:14px;color:var(--text2);line-height:1.7">TrendIQ's AI watches the market 24/7.</p></div><div class="auth-quote">"The market rewards patience and punishes emotion."</div></div>
-    <div class="auth-right"><div class="auth-form"><h1 class="auth-title">Welcome back</h1><p class="auth-sub">Sign in to your trading account</p><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Email</label><input class="fld" type="email" placeholder="you@example.com"></div><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Password</label><input class="fld" type="password" placeholder="••••••••"></div><button class="auth-btn" onclick="goTo('dashboard')">Sign in</button><div class="auth-ft">No account? <a onclick="goTo('register')">Start free</a></div></div></div>
+    <div class="auth-right"><div class="auth-form"><h1 class="auth-title">Welcome back</h1><p class="auth-sub">Sign in to your trading account</p><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Email</label><input class="fld" id="login-email" type="email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')signIn()"></div><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Password</label><input class="fld" id="login-pw" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')signIn()"></div><div id="login-err" style="font-size:12px;color:var(--red);margin-bottom:8px;display:none"></div><button class="auth-btn" onclick="signIn()">Sign in</button><div class="auth-ft">No account? <a onclick="goTo('register')">Start free</a></div></div></div>
   </div>
 </div>
 
@@ -377,7 +377,7 @@ button,input,select,textarea{font-family:inherit}
 <div id="page-register" class="page">
   <div class="auth-shell">
     <div class="auth-left"><div><div class="fl-pill"><span class="fl-dot"></span>Free 1-day demo</div><h2 style="font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1.2;margin-bottom:14px">Start trading smarter today</h2><p style="font-size:14px;color:var(--text2);line-height:1.7">No credit card required.</p></div><div class="auth-quote">"Discipline and data beat emotion every time."</div></div>
-    <div class="auth-right"><div class="auth-form"><h1 class="auth-title">Create your account</h1><p class="auth-sub">Start in under 60 seconds</p><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Email</label><input class="fld" type="email" placeholder="you@example.com"></div><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Password</label><input class="fld" type="password" placeholder="Min. 8 characters"></div><button class="auth-btn" onclick="goTo('dashboard')">Create account</button><div class="auth-ft">Have an account? <a onclick="goTo('login')">Sign in</a></div></div></div>
+    <div class="auth-right"><div class="auth-form"><h1 class="auth-title">Create your account</h1><p class="auth-sub">Start in under 60 seconds</p><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Email</label><input class="fld" id="reg-email" type="email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')signUp()"></div><div style="margin-bottom:14px"><label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Password</label><input class="fld" id="reg-pw" type="password" placeholder="Min. 8 characters" onkeydown="if(event.key==='Enter')signUp()"></div><div id="reg-err" style="font-size:12px;color:var(--red);margin-bottom:8px;display:none"></div><button class="auth-btn" onclick="signUp()">Create account</button><div class="auth-ft">Have an account? <a onclick="goTo('login')">Sign in</a></div></div></div>
   </div>
 </div>
 
@@ -404,7 +404,14 @@ button,input,select,textarea{font-family:inherit}
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v1.5A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         Install App
       </button>
-      <div class="db-user"><div class="db-avatar">AG</div><span class="db-uname">alexgaray5</span><span class="free-badge">FREE</span></div>
+      <div class="db-user" style="cursor:pointer;position:relative" onclick="toggleUserMenu()">
+        <div class="db-avatar" id="db-avatar-initials">?</div>
+        <span class="db-uname" id="db-uname-display">—</span>
+        <span class="free-badge">FREE</span>
+        <div id="user-menu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px;min-width:150px;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+          <div onclick="signOut()" style="padding:8px 12px;font-size:13px;color:var(--red);border-radius:6px;cursor:pointer;white-space:nowrap" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background=''">Sign out</div>
+        </div>
+      </div>
     </div>
     <!-- Mobile sidebar overlay -->
     <div class="mob-overlay" id="mobOverlay" onclick="toggleMobSidebar()"></div>
@@ -2001,6 +2008,116 @@ function doRefreshMom() {
 }
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
+// ─── SESSION / AUTH ───────────────────────────────────────────────────────────
+var SESSION_KEY  = "tiq_session";
+var SESSION_DAYS = 30;
+
+function setCookie(name, value, days) {
+  var d = new Date();
+  d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = name + "=" + encodeURIComponent(value) + ";expires=" + d.toUTCString() + ";path=/;SameSite=Lax";
+}
+function getCookie(name) {
+  var v = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+  return v ? decodeURIComponent(v.pop()) : null;
+}
+function deleteCookie(name) {
+  document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/";
+}
+
+function saveSession(email) {
+  var data = JSON.stringify({ email: email, ts: Date.now() });
+  localStorage.setItem(SESSION_KEY, data);
+  setCookie(SESSION_KEY, data, SESSION_DAYS);
+}
+function loadSession() {
+  var raw = getCookie(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch(e) { return null; }
+}
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+  deleteCookie(SESSION_KEY);
+}
+
+function applySessionToUI(session) {
+  if (!session) return;
+  var email   = session.email || "";
+  var initials = email.split("@")[0].slice(0,2).toUpperCase() || "?";
+  var uname   = email.split("@")[0];
+  var av = document.getElementById("db-avatar-initials");
+  var un = document.getElementById("db-uname-display");
+  if (av) av.textContent = initials;
+  if (un) un.textContent = uname;
+}
+
+function checkSession() {
+  var s = loadSession();
+  if (s) {
+    applySessionToUI(s);
+    goTo("dashboard");
+    return true;
+  }
+  return false;
+}
+
+function signIn() {
+  var emailEl = document.getElementById("login-email");
+  var pwEl    = document.getElementById("login-pw");
+  var errEl   = document.getElementById("login-err");
+  var email   = emailEl ? emailEl.value.trim() : "";
+  var pw      = pwEl    ? pwEl.value           : "";
+  if (!email || !email.includes("@")) {
+    if (errEl) { errEl.textContent = "Please enter a valid email."; errEl.style.display = "block"; } return;
+  }
+  if (pw.length < 6) {
+    if (errEl) { errEl.textContent = "Password must be at least 6 characters."; errEl.style.display = "block"; } return;
+  }
+  if (errEl) errEl.style.display = "none";
+  saveSession(email);
+  applySessionToUI({ email: email });
+  goTo("dashboard");
+}
+
+function signUp() {
+  var emailEl = document.getElementById("reg-email");
+  var pwEl    = document.getElementById("reg-pw");
+  var errEl   = document.getElementById("reg-err");
+  var email   = emailEl ? emailEl.value.trim() : "";
+  var pw      = pwEl    ? pwEl.value           : "";
+  if (!email || !email.includes("@")) {
+    if (errEl) { errEl.textContent = "Please enter a valid email."; errEl.style.display = "block"; } return;
+  }
+  if (pw.length < 8) {
+    if (errEl) { errEl.textContent = "Password must be at least 8 characters."; errEl.style.display = "block"; } return;
+  }
+  if (errEl) errEl.style.display = "none";
+  saveSession(email);
+  applySessionToUI({ email: email });
+  goTo("dashboard");
+}
+
+function signOut() {
+  clearSession();
+  toggleUserMenu(true);
+  goTo("home");
+  if (typeof showToast === "function") showToast("Signed out successfully");
+}
+
+function toggleUserMenu(forceClose) {
+  var m = document.getElementById("user-menu");
+  if (!m) return;
+  m.style.display = (forceClose || m.style.display !== "none") ? "none" : "block";
+  if (m.style.display === "block") {
+    setTimeout(function() {
+      document.addEventListener("click", function closeMenu(e) {
+        if (!e.target.closest || !e.target.closest(".db-user")) { m.style.display = "none"; }
+        document.removeEventListener("click", closeMenu);
+      });
+    }, 10);
+  }
+}
+
 function goTo(pg) {
   var pages = document.querySelectorAll(".page");
   for (var i=0;i<pages.length;i++) pages[i].classList.remove("active");
@@ -2498,6 +2615,7 @@ function initBotChart() {
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+checkSession();   // auto-login if valid session cookie/localStorage exists
 renderTicker();
 renderHomeSF();
 renderRecentTrades();
