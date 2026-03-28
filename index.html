@@ -624,8 +624,12 @@ button,input,select,textarea{font-family:inherit}
                   <button class="db-btn" style="font-size:12px;padding:7px 14px" onclick="clearKrakenKeys()">Clear Keys</button>
                   <span id="set-kr-msg" style="font-size:12px;color:var(--text3)"></span>
                 </div>
-                <div style="margin-top:12px;padding:10px 12px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--text3);line-height:1.6">
-                  Keys are stored in your browser only (localStorage) and sent over HTTPS. Make sure your Kraken key has <strong style="color:var(--text2)">Query Funds</strong> and <strong style="color:var(--text2)">Query Open Orders</strong> permissions enabled.
+                <div style="margin-top:12px;padding:12px 14px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--text3);line-height:1.8">
+                  <div style="font-weight:600;color:var(--text2);margin-bottom:6px">Required Kraken API permissions</div>
+                  <div>✅ <strong style="color:var(--text2)">Query Funds</strong> — to see your balance</div>
+                  <div>✅ <strong style="color:var(--text2)">Query Open Orders &amp; Trades</strong> — for open orders + history</div>
+                  <div>✅ <strong style="color:var(--text2)">Create &amp; Modify Orders</strong> — to place Snipe trades</div>
+                  <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)">Keys are stored in your browser only (localStorage) and sent over HTTPS. Never share your Private Key.</div>
                 </div>
               </div>
             </div>
@@ -1733,6 +1737,26 @@ function updateSnipeVolume() {
   if (!d || !usd) { el.textContent = "≈ — units"; return; }
   el.textContent = "≈ " + (usd / d.price).toFixed(6) + " " + _snipeSym.replace("/USD","");
 }
+// Human-readable explanations for common Kraken API errors
+var KRAKEN_ERRORS = {
+  "ETrade:User Locked":           "Trading is locked on this API key. In Kraken → Security → API, edit your key and enable 'Create & modify orders'.",
+  "EAPI:Invalid key":             "API key not recognised. Double-check the key in Settings.",
+  "EAPI:Invalid signature":       "Invalid signature — the Private Key (Secret) is wrong. Re-paste it from Kraken → Security → API.",
+  "EAPI:Invalid nonce":           "Nonce error — try again.",
+  "EGeneral:Permission denied":   "Permission denied. Enable 'Create & modify orders' on your Kraken API key.",
+  "EOrder:Insufficient funds":    "Insufficient funds on your Kraken account for this order size.",
+  "EOrder:Order minimum not met": "Order too small — Kraken requires a minimum order size for this pair.",
+  "EQuery:Unknown asset pair":    "Unknown trading pair. This pair may not be available on your Kraken account.",
+};
+function krakenErrMsg(errors) {
+  for (var i = 0; i < errors.length; i++) {
+    for (var code in KRAKEN_ERRORS) {
+      if (errors[i].indexOf(code) !== -1) return KRAKEN_ERRORS[code];
+    }
+  }
+  return errors.join(", ");
+}
+
 function confirmSnipe() {
   var usd = parseFloat(document.getElementById("snipeUsd").value);
   var d   = liveData[_snipeSym];
@@ -1740,13 +1764,25 @@ function confirmSnipe() {
   var btn = document.getElementById("snipeBtn");
   if (!usd || usd <= 0) { st.className = "modal-status show err"; st.textContent = "Enter a valid USD amount."; return; }
   if (!d)               { st.className = "modal-status show err"; st.textContent = "Price not loaded yet — try again."; return; }
+
+  // Check keys are available before attempting
+  var k = localStorage.getItem("kr_key");
+  var s = localStorage.getItem("kr_secret");
+  if (!k || !s) {
+    st.className = "modal-status show err";
+    st.textContent = "No API keys saved — go to Settings and add your Kraken API Key + Private Key first.";
+    return;
+  }
+
   var krakenPair = KRAKEN_PAIRS[_snipeSym] || _snipeSym;
   var volume     = (usd / d.price).toFixed(8);
   st.className = "modal-status show spin"; st.textContent = "Placing " + _snipeSide.toUpperCase() + " order…";
   btn.disabled = true;
+
+  var hdrs = getKrakenHeaders();  // includes x-kr-key / x-kr-secret from localStorage
   fetch("/api/kraken", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: hdrs,
     body: JSON.stringify({endpoint:"/0/private/AddOrder", params:{pair:krakenPair, type:_snipeSide, ordertype:"market", volume:volume}})
   })
   .then(function(r){ return r.json(); })
@@ -1754,7 +1790,7 @@ function confirmSnipe() {
     btn.disabled = false;
     if (data.error && data.error.length) {
       st.className = "modal-status show err";
-      st.textContent = "Kraken error: " + data.error.join(", ");
+      st.textContent = krakenErrMsg(data.error);
     } else {
       var txid = (data.result && data.result.txid) ? data.result.txid[0] : "–";
       var desc = (data.result && data.result.descr) ? data.result.descr.order : "";
