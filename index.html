@@ -701,9 +701,13 @@ button,input,select,textarea{font-family:inherit}
           </div>
         </div>
         <div id="dtab-history" class="db-tab">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
             <div class="card-h">Trade History · Kraken Live</div>
-            <button class="db-btn" onclick="fetchKraken()" style="font-size:11px;padding:4px 10px">Refresh</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span id="hist-ml-status" style="font-size:11px;color:var(--text3)"></span>
+              <button class="db-btn" onclick="recalcMLFromHistory()" style="font-size:11px;padding:4px 12px;color:var(--purple);border-color:rgba(139,92,246,0.35)" title="Re-run ML analysis on all trade outcomes">🧠 Recalculate ML</button>
+              <button class="db-btn" onclick="fetchKraken()" style="font-size:11px;padding:4px 10px">↻ Refresh</button>
+            </div>
           </div>
           <!-- Filter bar -->
           <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
@@ -737,6 +741,21 @@ button,input,select,textarea{font-family:inherit}
               <button class="db-btn" id="btnStop"  onclick="setMode('idle')" style="font-size:11px;padding:4px 10px">Stop</button>
             </div>
           </div>
+          <!-- Turbo Sim banner -->
+          <div id="turbo-sim-bar" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div>
+              <span style="font-size:13px;font-weight:700;color:var(--purple)">⚡ Turbo Sim</span>
+              <span style="font-size:12px;color:var(--text3);margin-left:10px">Cycles every 5s · Buy ≥ <span id="turbo-threshold-display">45</span> · TP +2% / SL −1.5% · target ~150 trades/day</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:12px;color:var(--text3)">Today's sim trades: <strong id="turbo-trades-today" style="color:var(--purple)">0</strong></span>
+              <button class="db-btn" onclick="toggleTurboSim()" id="turbo-toggle-btn" style="font-size:11px;padding:4px 12px;color:var(--purple);border-color:rgba(139,92,246,0.4)">Turn Off</button>
+            </div>
+          </div>
+          <div id="turbo-sim-off-hint" style="margin-bottom:10px;font-size:12px;color:var(--text3)">
+            💡 In Sim mode? Enable <button onclick="toggleTurboSim()" style="background:none;border:none;color:var(--purple);font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline">⚡ Turbo Sim</button> to hit ~150 trades/day and train the ML model faster.
+          </div>
+
           <div class="mc-grid">
             <div class="mc"><div class="mc-label">Net Flow (7d)</div><div class="mc-val" id="bot-pnl" style="font-size:20px">—</div><div class="mc-sub" id="bot-pnl-sub">Connect Kraken</div></div>
             <div class="mc"><div class="mc-label">Trades (7d)</div><div class="mc-val" id="bot-trades7d" style="font-size:20px">—</div><div class="mc-sub">From Kraken history</div></div>
@@ -1606,6 +1625,9 @@ function setMode(mode) {
     stopAutoTrader();
   }
 
+  // Update turbo UI visibility (only visible in sim mode)
+  updateTurboUI();
+
   // Sync mode to server so cron job picks it up
   syncBotModeToServer(mode);
 }
@@ -2177,7 +2199,7 @@ function showDash(tab,el) {
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
     if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
     if(tab==="ml")         { renderMLAccuracy(); }
-    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); }
+    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); loadTurboState(); updateTurboUI(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
       else { renderMomTopCards(); renderMomTable(); renderMomAI(); }
@@ -3418,17 +3440,101 @@ function botLog(msg, color) {
 }
 function clearBotLog() { _botLog = []; renderBotLog(); showToast("Log cleared"); }
 
+// ─── TURBO SIM ────────────────────────────────────────────────────────────────
+var _turboSim       = false;
+var _turboTodayCount = 0;
+var _turboDateKey   = "";
+
+function loadTurboState() {
+  try {
+    var s = JSON.parse(localStorage.getItem("tiq_turbo") || "{}");
+    _turboSim = s.on || false;
+    var today = new Date().toISOString().slice(0,10);
+    _turboTodayCount = (s.dateKey === today) ? (s.count || 0) : 0;
+    _turboDateKey = today;
+  } catch(e) { _turboSim = false; }
+}
+function saveTurboState() {
+  localStorage.setItem("tiq_turbo", JSON.stringify({ on: _turboSim, count: _turboTodayCount, dateKey: _turboDateKey }));
+}
+
+function toggleTurboSim() {
+  _turboSim = !_turboSim;
+  saveTurboState();
+  updateTurboUI();
+  if (botMode === "sim" && _autoTraderLoop) {
+    // Restart loop at new interval
+    clearInterval(_autoTraderLoop);
+    _autoTraderLoop = null;
+    var interval = _turboSim ? 5000 : 30000;
+    _autoTraderLoop = setInterval(runAutoTraderCycle, interval);
+    botLog("⚡ Turbo Sim " + (_turboSim ? "ON (5s cycles)" : "OFF (30s cycles)"), _turboSim ? "var(--purple)" : "var(--text3)");
+  }
+}
+
+function updateTurboUI() {
+  var bar     = document.getElementById("turbo-sim-bar");
+  var hint    = document.getElementById("turbo-sim-off-hint");
+  var btn     = document.getElementById("turbo-toggle-btn");
+  var counter = document.getElementById("turbo-trades-today");
+  var tdisp   = document.getElementById("turbo-threshold-display");
+  var isSimRunning = botMode === "sim";
+
+  if (bar)  bar.style.display  = (_turboSim && isSimRunning) ? "flex" : "none";
+  if (hint) hint.style.display = (!_turboSim && isSimRunning) ? "block" : "none";
+  if (btn)  btn.textContent    = _turboSim ? "Turn Off" : "Turn On";
+  if (counter) counter.textContent = _turboTodayCount;
+  if (tdisp) {
+    // Show the effective buy threshold in turbo mode (strategy buyScore − 10, min 40)
+    var minThresh = 99;
+    (_strategies || []).forEach(function(s){ if (s.enabled && s.buyScore) minThresh = Math.min(minThresh, s.buyScore); });
+    tdisp.textContent = minThresh < 99 ? Math.max(40, minThresh - 10) : "45";
+  }
+}
+
+function bumpTurboCount() {
+  var today = new Date().toISOString().slice(0,10);
+  if (_turboDateKey !== today) { _turboTodayCount = 0; _turboDateKey = today; }
+  _turboTodayCount++;
+  saveTurboState();
+  var counter = document.getElementById("turbo-trades-today");
+  if (counter) counter.textContent = _turboTodayCount;
+}
+
+// ─── ML RECALC FROM HISTORY ───────────────────────────────────────────────────
+function recalcMLFromHistory() {
+  var statusEl = document.getElementById("hist-ml-status");
+  loadTradeOutcomes();
+  var n = _tradeOutcomes.length;
+  if (!n) {
+    if (statusEl) { statusEl.textContent = "No sim trades yet."; statusEl.style.color = "var(--text3)"; }
+    return;
+  }
+  if (statusEl) { statusEl.textContent = "Recalculating…"; statusEl.style.color = "var(--amber)"; }
+  setTimeout(function() {
+    forceRetrain();
+    var ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (statusEl) { statusEl.textContent = "✅ Updated from " + n + " trades at " + ts; statusEl.style.color = "var(--green)"; }
+    if (typeof showToast === "function") showToast("🧠 ML recalculated from " + n + " trade outcomes");
+    setTimeout(function() { if (statusEl) statusEl.textContent = ""; }, 8000);
+  }, 80);
+}
+
 function startAutoTrader() {
   if (_autoTraderLoop) return;  // already running
   loadBotPositions();
-  botLog("🤖 Auto-trader started [" + botMode.toUpperCase() + " mode]", "var(--green)");
+  loadTurboState();
+  botLog("🤖 Auto-trader started [" + botMode.toUpperCase() + " mode" + (_turboSim && botMode==="sim" ? " · ⚡ TURBO" : "") + "]", "var(--green)");
   renderBotPositions();
   runAutoTraderCycle();  // immediate first run
-  _autoTraderLoop = setInterval(runAutoTraderCycle, 30000);
+  var interval = (_turboSim && botMode === "sim") ? 5000 : 30000;
+  _autoTraderLoop = setInterval(runAutoTraderCycle, interval);
+  updateTurboUI();
 }
 function stopAutoTrader() {
   if (_autoTraderLoop) { clearInterval(_autoTraderLoop); _autoTraderLoop = null; }
   botLog("⛔ Auto-trader stopped", "var(--red)");
+  updateTurboUI();
 }
 
 async function runAutoTraderCycle() {
@@ -3468,8 +3574,20 @@ async function runAutoTraderCycle() {
     }
 
     // ── NO POSITION: look for a buy signal ──
-    if (s.mode !== "sell" && score >= s.buyScore) {
-      await autoExecute(s, "buy", price, "📈 Buy signal (" + score + "/100 ≥ " + s.buyScore + ")", null);
+    var effectiveBuyScore = s.buyScore;
+    var effectiveTP = pos ? pos.tp : (s.tp || 3);
+    var effectiveSL = pos ? pos.sl : (s.sl || -2);
+    if (_turboSim && botMode === "sim") {
+      effectiveBuyScore = Math.max(40, s.buyScore - 10);   // lower threshold by 10pts, min 40
+      effectiveTP  = 2.0;    // tight TP: +2%
+      effectiveSL  = -1.5;   // tight SL: -1.5%
+    }
+    if (s.mode !== "sell" && score >= effectiveBuyScore) {
+      var turboStrat = _turboSim && botMode === "sim"
+        ? Object.assign({}, s, { tp: effectiveTP, sl: effectiveSL })
+        : s;
+      await autoExecute(turboStrat, "buy", price, "📈 Buy signal (" + score + "/100 ≥ " + effectiveBuyScore + ")" + (_turboSim && botMode==="sim" ? " ⚡" : ""), null);
+      if (_turboSim && botMode === "sim") bumpTurboCount();
     }
   }
 
