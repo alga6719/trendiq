@@ -3845,6 +3845,25 @@ async function runAutoTraderCycle() {
       var slHit   = pctChg <= pos.sl;
       var sigSell = (s.mode !== "buy") && score <= s.sellScore;
 
+      // ── SIM AUTO-CLOSE: don't wait for real price to move ──
+      if (botMode === "sim" && pos.simCloseAt && Date.now() >= pos.simCloseAt) {
+        // score-weighted win probability: score 40→45%, score 70→75%, score 99→90%
+        var winProb = 0.3 + (pos.entryScore || score) / 200;   // 0.45–0.795
+        var won     = Math.random() < winProb;
+        var simTp   = pos.tp  || s.tp  || 2;
+        var simSl   = pos.sl  || s.sl  || -1.5;
+        var simPct  = won ? simTp : simSl;
+        var simExitPrice = pos.entryPrice * (1 + simPct / 100);
+        var simReason = won
+          ? ("🎯 Sim TP +" + simTp + "% (score " + (pos.entryScore||score) + ")")
+          : ("🛑 Sim SL " + simSl + "% (score " + (pos.entryScore||score) + ")");
+        await autoExecute(s, "sell", simExitPrice, simReason, pos);
+        delete _botPositions[posKey];
+        saveBotPositions();
+        closePositionOnServer(posKey);
+        continue;
+      }
+
       if (tpHit || slHit || sigSell) {
         var closeReason = tpHit  ? ("🎯 Take-profit +" + pos.tp + "%")
                         : slHit  ? ("🛑 Stop-loss "   + pos.sl + "%")
@@ -3868,8 +3887,8 @@ async function runAutoTraderCycle() {
     }
     if (s.mode !== "sell" && score >= effectiveBuyScore) {
       var turboStrat = _turboSim && botMode === "sim"
-        ? Object.assign({}, s, { tp: effectiveTP, sl: effectiveSL })
-        : s;
+        ? Object.assign({}, s, { tp: effectiveTP, sl: effectiveSL, _entryScore: score })
+        : Object.assign({}, s, { _entryScore: score });
       await autoExecute(turboStrat, "buy", price, "📈 Buy signal (" + score + "/100 ≥ " + effectiveBuyScore + ")" + (_turboSim && botMode==="sim" ? " ⚡" : ""), null);
       if (_turboSim && botMode === "sim") bumpTurboCount();
     }
@@ -3910,16 +3929,26 @@ async function autoExecute(strat, side, price, reason, existingPos) {
       botLog(ts + "  🔵 SIM BUY   " + strat.pair + " @ $" + fP(price) + "  $" + strat.amount + "  " + reason, "#60a5fa");
     }
 
+    // In sim mode stamp a simCloseAt time so positions auto-close quickly
+    var simCloseDelay = 0;
+    if (botMode === "sim") {
+      // turbo: 5–20 s  |  normal: 20–90 s
+      var minMs = _turboSim ? 5000  : 20000;
+      var maxMs = _turboSim ? 20000 : 90000;
+      simCloseDelay = minMs + Math.random() * (maxMs - minMs);
+    }
     _botPositions[posKey] = {
-      stratName:  strat.name,
-      pair:       strat.pair,
-      entryPrice: price,
-      entryTime:  Date.now(),
-      amount:     strat.amount,
-      qty:        qty,
-      tp:         strat.takeProfit,
-      sl:         strat.stopLoss,
-      mode:       botMode
+      stratName:   strat.name,
+      pair:        strat.pair,
+      entryPrice:  price,
+      entryTime:   Date.now(),
+      amount:      strat.amount,
+      qty:         qty,
+      tp:          strat.takeProfit,
+      sl:          strat.stopLoss,
+      mode:        botMode,
+      entryScore:  strat._entryScore || 50,
+      simCloseAt:  botMode === "sim" ? Date.now() + simCloseDelay : 0
     };
     saveBotPositions();
     syncPositionToServer(posKey, _botPositions[posKey]);
