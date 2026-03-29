@@ -4174,15 +4174,16 @@ async function runAutoTraderCycle() {
     var effectiveTP = pos ? pos.tp : (s.tp || 3);
     var effectiveSL = pos ? pos.sl : (s.sl || -2);
     if (_turboSim && botMode === "sim") {
-      effectiveBuyScore = Math.max(40, s.buyScore - 10);   // lower threshold by 10pts, min 40
-      effectiveTP  = 2.0;    // tight TP: +2%
-      effectiveSL  = -1.5;   // tight SL: -1.5%
+      effectiveBuyScore = 0;   // Turbo Sim: always trade, no score gate
+      effectiveTP  = 2.0;
+      effectiveSL  = -1.5;
     }
+    // Normal sim/live: respect score threshold. Turbo sim: always fire (score gate = 0)
     if (s.mode !== "sell" && score >= effectiveBuyScore) {
       var turboStrat = _turboSim && botMode === "sim"
         ? Object.assign({}, s, { tp: effectiveTP, sl: effectiveSL, _entryScore: score })
         : Object.assign({}, s, { _entryScore: score });
-      await autoExecute(turboStrat, "buy", price, "📈 Buy signal (" + score + "/100 ≥ " + effectiveBuyScore + ")" + (_turboSim && botMode==="sim" ? " ⚡" : ""), null);
+      await autoExecute(turboStrat, "buy", price, "📈 Buy signal (" + score + "/100)" + (_turboSim && botMode==="sim" ? " ⚡ Turbo" : ""), null);
       if (_turboSim && botMode === "sim") bumpTurboCount();
     }
   }
@@ -4237,8 +4238,8 @@ async function autoExecute(strat, side, price, reason, existingPos) {
       entryTime:   Date.now(),
       amount:      strat.amount,
       qty:         qty,
-      tp:          strat.takeProfit,
-      sl:          strat.stopLoss,
+      tp:          strat.takeProfit || strat.tp || 3,
+      sl:          strat.stopLoss  || strat.sl || -2,
       mode:        botMode,
       entryScore:  strat._entryScore || 50,
       simCloseAt:  botMode === "sim" ? Date.now() + simCloseDelay : 0
