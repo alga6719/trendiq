@@ -457,12 +457,48 @@ button,input,select,textarea{font-family:inherit}
           <div class="card"><div class="card-h">Recent Trades</div><div class="card-sub">Latest executed trades</div><div id="recentTrades"></div></div>
         </div>
         <div id="dtab-portfolio" class="db-tab">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-            <div class="card-h">Portfolio · Kraken Live</div>
-            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)">
-              <span class="mc-dot"></span>Kraken connected
-              <button class="db-btn" onclick="fetchKraken()" style="font-size:11px;padding:4px 10px">Sync Now</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+            <div class="card-h">Portfolio</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button class="db-btn" onclick="fetchKraken();renderPortfolioPositions()" style="font-size:11px;padding:4px 10px">🔄 Sync</button>
             </div>
+          </div>
+
+          <!-- Open Bot Positions -->
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+              <div class="card-h" style="font-size:14px">Open Positions</div>
+              <span style="font-size:11px;color:var(--text3)" id="port-pos-mode"></span>
+            </div>
+            <div id="port-positions-list"><div style="color:var(--text3);font-size:13px;padding:8px 0">No open positions. Start the Sim or Live bot to see trades here.</div></div>
+          </div>
+
+          <!-- Quick Trade -->
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-h" style="font-size:14px;margin-bottom:14px">Quick Trade</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;align-items:end;flex-wrap:wrap" id="quick-trade-grid">
+              <div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Pair</div>
+                <select id="qt-pair" style="width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px">
+                  <option>BTC/USD</option><option>ETH/USD</option><option>SOL/USD</option>
+                  <option>AVAX/USD</option><option>BNB/USD</option><option>ARB/USD</option>
+                  <option>OP/USD</option><option>WIF/USD</option><option>JUP/USD</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Amount (USD)</div>
+                <input id="qt-amount" type="number" value="100" min="1" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:7px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px"/>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Mode</div>
+                <select id="qt-mode" style="width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px">
+                  <option value="sim">Sim</option><option value="live">Live (Kraken)</option>
+                </select>
+              </div>
+              <button onclick="quickTrade('buy')"  style="padding:8px 18px;border-radius:7px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:var(--green);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">▲ Buy</button>
+              <button onclick="quickTrade('sell')" style="padding:8px 18px;border-radius:7px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:var(--red);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">▼ Sell</button>
+            </div>
+            <div id="qt-status" style="margin-top:10px;font-size:12px;color:var(--text3)"></div>
           </div>
           <div class="mc-grid">
             <div class="mc"><div class="mc-label">Total Balance (Kraken)</div><div class="mc-val" style="font-size:22px" id="kraken-total">Loading…</div><div class="mc-sub">Live from Kraken API</div></div>
@@ -2260,7 +2296,7 @@ function showDash(tab,el) {
   if(el) el.classList.add("active");
   setTimeout(function(){
     if(tab==="dashboard")  { initPerfChart(); initSentimentGauge(); }
-    if(tab==="portfolio")  { initPortfolioChart(); fetchKraken(); }
+    if(tab==="portfolio")  { renderPortfolioPositions(); initPortfolioChart(); fetchKraken(); }
     if(tab==="history")    { fetchKraken(); if(krakenTrades.length){ populatePairFilter(); var ce=document.getElementById("hist-count");if(ce)ce.textContent=krakenTrades.length+" trades"; } }
     if(tab==="settings")   { initSettingsTab(); renderMLSettingsPanel(); }
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
@@ -2487,6 +2523,92 @@ document.addEventListener("click", function(e) {
   var container = document.getElementById("dtab-watchlist");
   if (container && !container.contains(e.target)) closeWatchlistSearch();
 });
+
+// ─── PORTFOLIO POSITIONS + QUICK TRADE ───────────────────────────────────────
+function renderPortfolioPositions() {
+  loadBotPositions();
+  var el    = document.getElementById("port-positions-list"); if (!el) return;
+  var modeEl = document.getElementById("port-pos-mode");
+  var keys  = Object.keys(_botPositions);
+  if (!keys.length) {
+    el.innerHTML = "<div style='color:var(--text3);font-size:13px;padding:8px 0'>No open positions. Start the Sim or Live bot to see trades here.</div>";
+    if (modeEl) modeEl.textContent = "";
+    return;
+  }
+  if (modeEl) modeEl.textContent = botMode === "live" ? "🟢 Live" : botMode === "sim" ? "🔵 Sim" : "";
+  var html = "<table class='tbl'><thead><tr><th>Strategy</th><th>Pair</th><th>Entry $</th><th>Current $</th><th>P&amp;L</th><th>Duration</th><th></th></tr></thead><tbody>";
+  keys.forEach(function(k) {
+    var p      = _botPositions[k];
+    var price  = liveData[p.pair] ? liveData[p.pair].price : p.entryPrice;
+    var pnlPct = ((price - p.entryPrice) / p.entryPrice * 100);
+    var pnlUsd = (price - p.entryPrice) * p.qty;
+    var dur    = Math.round((Date.now() - p.entryTime) / 60000);
+    var durStr = dur < 60 ? dur + "m" : (Math.floor(dur/60)) + "h " + (dur%60) + "m";
+    var pnlCol = pnlPct >= 0 ? "var(--green)" : "var(--red)";
+    var pnlStr = (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "% / " + (pnlUsd >= 0 ? "+" : "") + "$" + Math.abs(pnlUsd).toFixed(2);
+    html += "<tr>" +
+      "<td style='font-weight:600;font-size:12px'>" + (p.stratName || k.split("|")[0]) + "</td>" +
+      "<td>" + p.pair + "</td>" +
+      "<td class='mono'>$" + fP(p.entryPrice) + "</td>" +
+      "<td class='mono'>$" + fP(price) + "</td>" +
+      "<td style='font-weight:600;color:" + pnlCol + "'>" + pnlStr + "</td>" +
+      "<td style='font-size:12px;color:var(--text3)'>" + durStr + "</td>" +
+      "<td><button onclick='closePortfolioPosition(\"" + k + "\")' style='font-size:11px;padding:3px 10px;border-radius:5px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:var(--red);cursor:pointer'>Close</button></td>" +
+      "</tr>";
+  });
+  html += "</tbody></table>";
+  el.innerHTML = html;
+}
+
+async function closePortfolioPosition(posKey) {
+  loadBotPositions();
+  var pos = _botPositions[posKey]; if (!pos) return;
+  var price = liveData[pos.pair] ? liveData[pos.pair].price : pos.entryPrice;
+  var s = { name: posKey.split("|")[0], pair: pos.pair, tp: pos.tp, sl: pos.sl,
+            amount: pos.amount, takeProfit: pos.tp, stopLoss: pos.sl, mode: "both" };
+  await autoExecute(s, "sell", price, "🖐 Manual close (Portfolio)", pos);
+  delete _botPositions[posKey];
+  saveBotPositions();
+  closePositionOnServer(posKey);
+  renderPortfolioPositions();
+  renderBotPositions();
+}
+
+async function quickTrade(side) {
+  var pair   = (document.getElementById("qt-pair")   || {}).value  || "BTC/USD";
+  var amount = parseFloat((document.getElementById("qt-amount") || {}).value) || 100;
+  var mode   = (document.getElementById("qt-mode")   || {}).value  || "sim";
+  var price  = liveData[pair] ? liveData[pair].price : 0;
+  var status = document.getElementById("qt-status");
+  if (!price) { if (status) status.innerHTML = "<span style='color:var(--red)'>⚠ No price data for " + pair + " — check Watchlist is loaded</span>"; return; }
+
+  var prevMode = botMode;
+  botMode = mode;  // temporarily set for autoExecute logging
+
+  var posKey = "QuickTrade|" + pair;
+  loadBotPositions();
+  if (side === "buy") {
+    if (_botPositions[posKey]) { if (status) status.innerHTML = "<span style='color:var(--amber)'>⚠ Already have a quick-trade position open for " + pair + ". Close it first.</span>"; botMode = prevMode; return; }
+    var momEntry = momData.find(function(m){ return m.sym === pair; });
+    var score = momEntry ? momEntry.score : 55;
+    var strat = { name: "QuickTrade", pair: pair, amount: amount, takeProfit: 3, stopLoss: -2,
+                  tp: 3, sl: -2, mode: "both", _entryScore: score };
+    await autoExecute(strat, "buy", price, "🖐 Manual buy (" + mode + ")", null);
+    if (status) status.innerHTML = "<span style='color:var(--green)'>✅ " + (mode==="sim"?"Sim":"Live") + " BUY placed · " + pair + " @ $" + fP(price) + "</span>";
+  } else {
+    var pos = _botPositions[posKey];
+    if (!pos) { if (status) status.innerHTML = "<span style='color:var(--amber)'>⚠ No quick-trade buy open for " + pair + ". Buy first.</span>"; botMode = prevMode; return; }
+    var s = { name:"QuickTrade", pair:pair, amount:amount, takeProfit:pos.tp, stopLoss:pos.sl, tp:pos.tp, sl:pos.sl, mode:"both" };
+    await autoExecute(s, "sell", price, "🖐 Manual sell (" + mode + ")", pos);
+    delete _botPositions[posKey];
+    saveBotPositions();
+    if (status) status.innerHTML = "<span style='color:var(--green)'>✅ " + (mode==="sim"?"Sim":"Live") + " SELL placed · " + pair + " @ $" + fP(price) + "</span>";
+  }
+
+  botMode = prevMode;
+  renderPortfolioPositions();
+  renderBotPositions();
+}
 
 function renderWatchlist() {
   loadCustomWatchlist();
