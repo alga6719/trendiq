@@ -775,11 +775,25 @@ button,input,select,textarea{font-family:inherit}
           </div>
         </div>
         <div id="dtab-watchlist" class="db-tab">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
             <div class="card-h">Watchlist</div>
             <div style="font-size:11px;color:var(--green)" id="wlUpdate"></div>
           </div>
-          <div class="card"><table class="tbl"><thead><tr><th>Token</th><th>Price</th><th>24h %</th><th>Volume</th><th>Signal</th></tr></thead><tbody id="watchlistTbl"></tbody></table></div>
+
+          <!-- Coin Search -->
+          <div style="margin-bottom:16px;position:relative">
+            <div style="display:flex;gap:8px">
+              <input id="wl-search-input" type="text" placeholder="🔍 Search any coin — e.g. Pepe, Chainlink, MATIC…"
+                oninput="wlSearchDebounce()"
+                onkeydown="if(event.key==='Enter')searchWatchlistCoins()"
+                style="flex:1;padding:9px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px;outline:none"/>
+              <button class="btn-purple" onclick="searchWatchlistCoins()" style="font-size:12px;padding:8px 16px;flex-shrink:0">Search</button>
+            </div>
+            <!-- Search results dropdown -->
+            <div id="wl-search-results" style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:200;background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.4);max-height:320px;overflow-y:auto"></div>
+          </div>
+
+          <div class="card"><table class="tbl"><thead><tr><th>Token</th><th>Price</th><th>24h %</th><th>Volume</th><th>Signal</th><th></th></tr></thead><tbody id="watchlistTbl"></tbody></table></div>
         </div>
         <div id="dtab-sniper" class="db-tab">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
@@ -2362,16 +2376,142 @@ function renderMLGauges() {
     confEl.innerHTML = "<span style=\"color:" + cc + "\">" + avg + "</span> <span style=\"font-size:14px;color:var(--text3)\">/100</span>";
   }
 }
+// ─── CUSTOM WATCHLIST (persisted in localStorage) ────────────────────────────
+var WL_DEFAULT = ["BTC/USD","ETH/USD","SOL/USD","ARB/USD","AVAX/USD","BNB/USD","OP/USD","WIF/USD","JUP/USD"];
+var _customWatchlist = [];  // [{cgId, sym, name}]
+
+function loadCustomWatchlist() {
+  try { _customWatchlist = JSON.parse(localStorage.getItem("tiq_custom_wl") || "[]"); } catch(e) { _customWatchlist = []; }
+}
+function saveCustomWatchlist() {
+  localStorage.setItem("tiq_custom_wl", JSON.stringify(_customWatchlist));
+}
+function addToWatchlist(cgId, sym, name) {
+  loadCustomWatchlist();
+  if (_customWatchlist.find(function(x){ return x.sym === sym; })) { showToast("⚠ " + sym + " already in watchlist"); return; }
+  _customWatchlist.push({ cgId: cgId, sym: sym, name: name });
+  saveCustomWatchlist();
+  fetchCustomWatchlistPrices();
+  showToast("⭐ " + name + " added to watchlist");
+  closeWatchlistSearch();
+  renderWatchlist();
+}
+function removeFromWatchlist(sym) {
+  loadCustomWatchlist();
+  _customWatchlist = _customWatchlist.filter(function(x){ return x.sym !== sym; });
+  saveCustomWatchlist();
+  delete liveData[sym];
+  renderWatchlist();
+  showToast("🗑 Removed " + sym);
+}
+
+function fetchCustomWatchlistPrices() {
+  loadCustomWatchlist();
+  if (!_customWatchlist.length) return;
+  var ids = _customWatchlist.map(function(x){ return x.cgId; }).join(",");
+  fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + ids +
+    "&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true")
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      _customWatchlist.forEach(function(x) {
+        var d = data[x.cgId];
+        if (!d) return;
+        liveData[x.sym] = {
+          price: d.usd || 0,
+          chg24: d.usd_24h_change || 0,
+          vol:   d.usd_24h_vol   || 0
+        };
+      });
+      renderWatchlist();
+      var upd = document.getElementById("wlUpdate");
+      if (upd) upd.textContent = "Updated " + new Date().toLocaleTimeString();
+    }).catch(function(){});
+}
+
+// ─── WATCHLIST SEARCH ─────────────────────────────────────────────────────────
+var _wlSearchTimer = null;
+function wlSearchDebounce() {
+  clearTimeout(_wlSearchTimer);
+  var q = (document.getElementById("wl-search-input") || {}).value || "";
+  if (q.length < 2) { closeWatchlistSearch(); return; }
+  _wlSearchTimer = setTimeout(searchWatchlistCoins, 500);
+}
+
+function searchWatchlistCoins() {
+  var input = document.getElementById("wl-search-input"); if (!input) return;
+  var q = input.value.trim(); if (q.length < 1) return;
+  var res = document.getElementById("wl-search-results"); if (!res) return;
+  res.style.display = "block";
+  res.innerHTML = "<div style='padding:14px;font-size:12px;color:var(--text3)'>Searching…</div>";
+  fetch("https://api.coingecko.com/api/v3/search?query=" + encodeURIComponent(q))
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var coins = (data.coins || []).slice(0, 8);
+      if (!coins.length) { res.innerHTML = "<div style='padding:14px;font-size:13px;color:var(--text3)'>No results for \"" + escHtml(q) + "\"</div>"; return; }
+      loadCustomWatchlist();
+      var defaultSyms = WL_DEFAULT;
+      var html = "";
+      coins.forEach(function(c) {
+        var sym = c.symbol.toUpperCase() + "/USD";
+        var alreadyWatching = defaultSyms.indexOf(sym) !== -1 || _customWatchlist.find(function(x){ return x.sym === sym; });
+        html += "<div style='display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border2);cursor:default'>";
+        if (c.thumb) html += "<img src='" + c.thumb + "' style='width:24px;height:24px;border-radius:50%;flex-shrink:0' onerror='this.style.display=\"none\"'/>";
+        html += "<div style='flex:1;min-width:0'>";
+        html += "  <div style='font-size:13px;font-weight:600'>" + escHtml(c.name) + " <span style='font-size:11px;color:var(--text3);font-weight:400'>" + c.symbol.toUpperCase() + "</span></div>";
+        if (c.market_cap_rank) html += "  <div style='font-size:11px;color:var(--text3)'>Rank #" + c.market_cap_rank + "</div>";
+        html += "</div>";
+        if (alreadyWatching) {
+          html += "<span style='font-size:11px;color:var(--green);font-weight:600;flex-shrink:0'>✓ Watching</span>";
+        } else {
+          html += "<button class='btn-purple' style='font-size:11px;padding:4px 12px;flex-shrink:0' onclick='addToWatchlist(\"" + c.id + "\",\"" + sym + "\",\"" + c.name.replace(/"/g,"") + "\")'>+ Watch</button>";
+        }
+        html += "</div>";
+      });
+      res.innerHTML = html;
+    })
+    .catch(function() { res.innerHTML = "<div style='padding:14px;font-size:13px;color:var(--red)'>Search failed — check connection</div>"; });
+}
+
+function closeWatchlistSearch() {
+  var res = document.getElementById("wl-search-results");
+  var inp = document.getElementById("wl-search-input");
+  if (res) res.style.display = "none";
+  if (inp) inp.value = "";
+}
+
+// Close search results when clicking outside
+document.addEventListener("click", function(e) {
+  var container = document.getElementById("dtab-watchlist");
+  if (container && !container.contains(e.target)) closeWatchlistSearch();
+});
+
 function renderWatchlist() {
-  var el=document.getElementById("watchlistTbl"); if(!el) return;
-  var syms=["BTC/USD","ETH/USD","SOL/USD","ARB/USD","AVAX/USD","BNB/USD","OP/USD","WIF/USD","JUP/USD"]; var html="";
-  for(var i=0;i<syms.length;i++){
-    var sym=syms[i]; var d=liveData[sym];
-    if(!d){html+="<tr><td style=\"font-weight:600\">"+sym+"</td><td colspan=\"4\" style=\"color:var(--text3);font-size:12px\">Loading…</td></tr>";continue;}
-    var sig=d.chg24>=3?"BUY":d.chg24<=-3?"SELL":"HOLD"; var sbc=sig==="BUY"?"bg":sig==="SELL"?"br":"ba";
-    html+="<tr><td style=\"font-weight:600\">"+sym+"</td><td class=\"mono\">$"+fP(d.price)+"</td><td class=\""+(d.chg24>=0?"up":"dn")+"\" style=\"font-weight:600\">"+fPct(d.chg24)+"</td><td style=\"font-size:12px;color:var(--text2)\">"+fVol(d.vol)+"</td><td><span class=\"badge "+sbc+"\">"+sig+"</span></td></tr>";
+  loadCustomWatchlist();
+  var el = document.getElementById("watchlistTbl"); if (!el) return;
+  var allSyms = WL_DEFAULT.map(function(sym){ return { sym: sym, name: sym.replace("/USD",""), removable: false }; })
+    .concat(_customWatchlist.map(function(x){ return { sym: x.sym, name: x.name, removable: true }; }));
+  var html = "";
+  for (var i = 0; i < allSyms.length; i++) {
+    var item = allSyms[i];
+    var sym  = item.sym;
+    var d    = liveData[sym];
+    if (!d) {
+      html += "<tr><td style='font-weight:600'>" + sym + "</td><td colspan='4' style='color:var(--text3);font-size:12px'>Loading…</td><td>" +
+        (item.removable ? "<button onclick='removeFromWatchlist(\""+sym+"\")' style='background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 6px' title='Remove'>×</button>" : "") +
+        "</td></tr>";
+      continue;
+    }
+    var sig = d.chg24 >= 3 ? "BUY" : d.chg24 <= -3 ? "SELL" : "HOLD";
+    var sbc = sig === "BUY" ? "bg" : sig === "SELL" ? "br" : "ba";
+    html += "<tr><td style='font-weight:600'>" + sym + (item.removable ? "" : "") + "</td>" +
+      "<td class='mono'>$" + fP(d.price) + "</td>" +
+      "<td class='" + (d.chg24 >= 0 ? "up" : "dn") + "' style='font-weight:600'>" + fPct(d.chg24) + "</td>" +
+      "<td style='font-size:12px;color:var(--text2)'>" + fVol(d.vol) + "</td>" +
+      "<td><span class='badge " + sbc + "'>" + sig + "</span></td>" +
+      "<td>" + (item.removable ? "<button onclick='removeFromWatchlist(\""+sym+"\")' style='background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px;line-height:1' title='Remove'>×</button>" : "") + "</td>" +
+      "</tr>";
   }
-  el.innerHTML=html;
+  el.innerHTML = html;
 }
 // renderHistory() removed — Trade History tab is now served entirely by renderKrakenTrades()
 
@@ -2722,6 +2862,7 @@ function initBotChart() {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 checkSession();   // auto-login if valid session cookie/localStorage exists
+fetchCustomWatchlistPrices();  // load prices for user-added watchlist coins
 renderTicker();
 renderHomeSF();
 renderRecentTrades();
