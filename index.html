@@ -533,12 +533,14 @@ button,input,select,textarea{font-family:inherit}
                 <div style="font-size:16px;font-weight:700">📋 TrendIQ v1.0 Strategy Presets</div>
                 <button onclick="closePresetsModal()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:0;line-height:1">×</button>
               </div>
-              <p style="font-size:12px;color:var(--text3);margin-bottom:18px">Select any strategy from TrendIQ 1.0 to add to your bot. Parameters are mapped from the original win rate, avg return, and trade volume data.</p>
+              <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Select any strategy from TrendIQ 1.0 to add to your bot. Parameters are mapped from the original win rate, avg return, and trade volume data.</p>
 
-              <div style="display:flex;flex-direction:column;gap:10px" id="presets-list"></div>
+              <input id="presets-search" type="text" placeholder="🔍 Search strategies, pairs…" oninput="filterPresets()" style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px;margin-bottom:14px;outline:none"/>
+
+              <div style="display:flex;flex-direction:column;gap:8px" id="presets-list"></div>
 
               <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
-                <button class="db-btn" onclick="loadAllPresets()" style="font-size:12px;padding:7px 14px;color:var(--green);border-color:rgba(34,197,94,0.3)">✅ Add All 8 Strategies</button>
+                <button class="db-btn" onclick="loadAllPresets()" style="font-size:12px;padding:7px 14px;color:var(--green);border-color:rgba(34,197,94,0.3)">✅ Add All 98 Strategies</button>
                 <button class="db-btn" onclick="closePresetsModal()" style="font-size:12px;padding:7px 14px">Close</button>
               </div>
             </div>
@@ -3077,46 +3079,196 @@ function saveStrategies() {
   }).catch(function(e){ console.warn("[bot-config] strategy sync:", e.message); });
 }
 
-// ─── V1.0 PRESET STRATEGIES ───────────────────────────────────────────────────
+// ─── V1.0 PRESET STRATEGIES (98 total across 3 groups) ───────────────────────
 var V1_PRESETS = [
-  // Market Neutral group
-  { name:"Delta Neutral Pairs",    group:"Market Neutral", pair:"BTC/USD",  buyScore:55, sellScore:35, tp:3.5,  sl:-2.5, amount:100, mode:"both", v1Win:59, v1Avg:3.45, v1Trades:231 },
-  { name:"Statistical Arbitrage",  group:"Market Neutral", pair:"ETH/USD",  buyScore:58, sellScore:38, tp:3.2,  sl:-2.0, amount:100, mode:"both", v1Win:63, v1Avg:3.23, v1Trades:463 },
-  { name:"Mean Reversion",         group:"Market Neutral", pair:"SOL/USD",  buyScore:45, sellScore:62, tp:3.0,  sl:-2.0, amount:100, mode:"both", v1Win:66, v1Avg:3.05, v1Trades:281 },
-  { name:"Volatility Trading",     group:"Market Neutral", pair:"BTC/USD",  buyScore:60, sellScore:40, tp:1.8,  sl:-1.5, amount:100, mode:"both", v1Win:66, v1Avg:1.79, v1Trades:522 },
-  { name:"Funding Rate Capture",   group:"Market Neutral", pair:"ETH/USD",  buyScore:52, sellScore:42, tp:1.1,  sl:-0.8, amount:100, mode:"buy",  v1Win:62, v1Avg:1.09, v1Trades:470 },
-  { name:"Basis Trading",          group:"Market Neutral", pair:"BTC/USD",  buyScore:57, sellScore:37, tp:2.9,  sl:-2.0, amount:100, mode:"both", v1Win:62, v1Avg:2.94, v1Trades:372 },
-  { name:"Calendar Spread",        group:"Market Neutral", pair:"SOL/USD",  buyScore:50, sellScore:45, tp:1.9,  sl:-1.2, amount:100, mode:"both", v1Win:79, v1Avg:1.90, v1Trades:295 },
-  { name:"Cross-Exchange Spread",  group:"Market Neutral", pair:"AVAX/USD", buyScore:55, sellScore:38, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:70, v1Avg:2.33, v1Trades:503 }
+  // ── MARKET NEUTRAL (44) ──────────────────────────────────────────────────────
+  { name:"Mean Reversion",           group:"Market Neutral", pair:"SOL/USD",  buyScore:52, sellScore:32, tp:3.4,  sl:-2.2, amount:100, mode:"both", v1Win:66, v1Avg:3.05, v1Trades:281 },
+  { name:"Volatility Trading",       group:"Market Neutral", pair:"BTC/USD",  buyScore:52, sellScore:32, tp:2.0,  sl:-1.3, amount:100, mode:"both", v1Win:66, v1Avg:1.79, v1Trades:522 },
+  { name:"Funding Rate Capture",     group:"Market Neutral", pair:"ETH/USD",  buyScore:47, sellScore:27, tp:1.2,  sl:-0.8, amount:100, mode:"both", v1Win:62, v1Avg:1.09, v1Trades:470 },
+  { name:"Basis Trading",            group:"Market Neutral", pair:"BTC/USD",  buyScore:47, sellScore:27, tp:3.2,  sl:-2.1, amount:100, mode:"both", v1Win:62, v1Avg:2.94, v1Trades:372 },
+  { name:"Calendar Spread",          group:"Market Neutral", pair:"BTC/USD",  buyScore:62, sellScore:42, tp:2.1,  sl:-1.4, amount:100, mode:"both", v1Win:79, v1Avg:1.90, v1Trades:295 },
+  { name:"Cross-Exchange Spread",    group:"Market Neutral", pair:"BTC/USD",  buyScore:52, sellScore:32, tp:2.6,  sl:-1.7, amount:100, mode:"both", v1Win:70, v1Avg:2.33, v1Trades:503 },
+  { name:"Correlation Trading",      group:"Market Neutral", pair:"ETH/USD",  buyScore:57, sellScore:37, tp:1.6,  sl:-1.0, amount:100, mode:"both", v1Win:72, v1Avg:1.46, v1Trades:514 },
+  { name:"Beta Neutral",             group:"Market Neutral", pair:"BNB/USD",  buyScore:52, sellScore:32, tp:2.9,  sl:-1.9, amount:100, mode:"both", v1Win:69, v1Avg:2.60, v1Trades:75  },
+  { name:"Sector Neutral",           group:"Market Neutral", pair:"AVAX/USD", buyScore:47, sellScore:27, tp:2.2,  sl:-1.4, amount:100, mode:"both", v1Win:63, v1Avg:1.96, v1Trades:134 },
+  { name:"Factor Neutral",           group:"Market Neutral", pair:"ETH/USD",  buyScore:52, sellScore:32, tp:0.8,  sl:-0.5, amount:100, mode:"both", v1Win:71, v1Avg:0.70, v1Trades:393 },
+  { name:"Options Delta Hedge",      group:"Market Neutral", pair:"BTC/USD",  buyScore:47, sellScore:27, tp:2.2,  sl:-1.4, amount:100, mode:"both", v1Win:65, v1Avg:2.03, v1Trades:297 },
+  { name:"Gamma Scalping",           group:"Market Neutral", pair:"BTC/USD",  buyScore:52, sellScore:32, tp:1.3,  sl:-0.8, amount:100, mode:"both", v1Win:71, v1Avg:1.17, v1Trades:129 },
+  { name:"Vega Neutral",             group:"Market Neutral", pair:"BTC/USD",  buyScore:43, sellScore:23, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:53, v1Avg:2.07, v1Trades:454 },
+  { name:"Theta Decay",              group:"Market Neutral", pair:"ETH/USD",  buyScore:62, sellScore:42, tp:0.9,  sl:-0.6, amount:100, mode:"both", v1Win:79, v1Avg:0.79, v1Trades:193 },
+  { name:"Convertible Arbitrage",    group:"Market Neutral", pair:"ETH/USD",  buyScore:47, sellScore:27, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:65, v1Avg:2.10, v1Trades:437 },
+  { name:"Merger Arbitrage",         group:"Market Neutral", pair:"SOL/USD",  buyScore:62, sellScore:42, tp:3.1,  sl:-2.0, amount:100, mode:"both", v1Win:78, v1Avg:2.80, v1Trades:411 },
+  { name:"Index Arbitrage",          group:"Market Neutral", pair:"BTC/USD",  buyScore:52, sellScore:32, tp:2.8,  sl:-1.8, amount:100, mode:"both", v1Win:69, v1Avg:2.55, v1Trades:485 },
+  { name:"ETF Arbitrage",            group:"Market Neutral", pair:"ETH/USD",  buyScore:43, sellScore:23, tp:1.2,  sl:-0.8, amount:100, mode:"both", v1Win:50, v1Avg:1.06, v1Trades:202 },
+  { name:"Liquidity Provision",      group:"Market Neutral", pair:"ETH/USD",  buyScore:47, sellScore:27, tp:3.6,  sl:-2.4, amount:100, mode:"both", v1Win:65, v1Avg:3.31, v1Trades:402 },
+  { name:"Market Making",            group:"Market Neutral", pair:"BTC/USD",  buyScore:43, sellScore:23, tp:3.5,  sl:-2.3, amount:100, mode:"both", v1Win:58, v1Avg:3.17, v1Trades:221 },
+  { name:"Order Flow",               group:"Market Neutral", pair:"ETH/USD",  buyScore:57, sellScore:37, tp:2.4,  sl:-1.6, amount:100, mode:"both", v1Win:76, v1Avg:2.21, v1Trades:132 },
+  { name:"Microstructure Alpha",     group:"Market Neutral", pair:"BTC/USD",  buyScore:62, sellScore:42, tp:1.1,  sl:-0.7, amount:100, mode:"both", v1Win:79, v1Avg:1.04, v1Trades:67  },
+  { name:"Relative Value",           group:"Market Neutral", pair:"SOL/USD",  buyScore:43, sellScore:23, tp:1.1,  sl:-0.7, amount:100, mode:"both", v1Win:54, v1Avg:1.04, v1Trades:333 },
+  { name:"Dispersion Trading",       group:"Market Neutral", pair:"AVAX/USD", buyScore:47, sellScore:27, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:59, v1Avg:2.11, v1Trades:162 },
+  { name:"Variance Swap",            group:"Market Neutral", pair:"BTC/USD",  buyScore:52, sellScore:32, tp:0.6,  sl:-0.4, amount:100, mode:"both", v1Win:66, v1Avg:0.50, v1Trades:216 },
+  { name:"Volatility Surface",       group:"Market Neutral", pair:"BTC/USD",  buyScore:43, sellScore:23, tp:1.8,  sl:-1.2, amount:100, mode:"both", v1Win:58, v1Avg:1.63, v1Trades:471 },
+  { name:"Cross-Asset Hedge",        group:"Market Neutral", pair:"BTC/USD",  buyScore:57, sellScore:37, tp:2.1,  sl:-1.4, amount:100, mode:"both", v1Win:75, v1Avg:1.93, v1Trades:91  },
+  { name:"Tail Risk Hedge",          group:"Market Neutral", pair:"BTC/USD",  buyScore:43, sellScore:23, tp:2.4,  sl:-1.6, amount:100, mode:"both", v1Win:51, v1Avg:2.22, v1Trades:258 },
+  { name:"Skew Trading",             group:"Market Neutral", pair:"BTC/USD",  buyScore:62, sellScore:42, tp:3.8,  sl:-2.5, amount:100, mode:"both", v1Win:78, v1Avg:3.43, v1Trades:230 },
+  { name:"Term Structure",           group:"Market Neutral", pair:"ETH/USD",  buyScore:43, sellScore:23, tp:3.5,  sl:-2.3, amount:100, mode:"both", v1Win:56, v1Avg:3.18, v1Trades:51  },
+  { name:"Risk Parity",              group:"Market Neutral", pair:"BNB/USD",  buyScore:62, sellScore:42, tp:3.1,  sl:-2.0, amount:100, mode:"both", v1Win:78, v1Avg:2.79, v1Trades:225 },
+  { name:"Minimum Variance",         group:"Market Neutral", pair:"AVAX/USD", buyScore:47, sellScore:27, tp:0.6,  sl:-0.4, amount:100, mode:"both", v1Win:61, v1Avg:0.57, v1Trades:166 },
+  { name:"Maximum Diversification",  group:"Market Neutral", pair:"ETH/USD",  buyScore:52, sellScore:32, tp:3.6,  sl:-2.4, amount:100, mode:"both", v1Win:66, v1Avg:3.31, v1Trades:489 },
+  { name:"Equal Risk Contribution",  group:"Market Neutral", pair:"BNB/USD",  buyScore:43, sellScore:23, tp:0.9,  sl:-0.6, amount:100, mode:"both", v1Win:50, v1Avg:0.81, v1Trades:464 },
+  { name:"Dynamic Hedging",          group:"Market Neutral", pair:"BTC/USD",  buyScore:43, sellScore:23, tp:2.4,  sl:-1.6, amount:100, mode:"both", v1Win:53, v1Avg:2.22, v1Trades:522 },
+  { name:"Portfolio Insurance",      group:"Market Neutral", pair:"BTC/USD",  buyScore:47, sellScore:27, tp:2.2,  sl:-1.4, amount:100, mode:"both", v1Win:59, v1Avg:1.98, v1Trades:81  },
+  { name:"Protective Puts",          group:"Market Neutral", pair:"BTC/USD",  buyScore:47, sellScore:27, tp:1.5,  sl:-1.0, amount:100, mode:"both", v1Win:64, v1Avg:1.38, v1Trades:372 },
+  { name:"Collar Strategy",          group:"Market Neutral", pair:"ETH/USD",  buyScore:57, sellScore:37, tp:3.3,  sl:-2.1, amount:100, mode:"both", v1Win:72, v1Avg:3.02, v1Trades:354 },
+  { name:"Iron Condor",              group:"Market Neutral", pair:"BTC/USD",  buyScore:47, sellScore:27, tp:3.7,  sl:-2.4, amount:100, mode:"both", v1Win:61, v1Avg:3.40, v1Trades:296 },
+  { name:"Butterfly Spread",         group:"Market Neutral", pair:"BTC/USD",  buyScore:43, sellScore:23, tp:2.7,  sl:-1.8, amount:100, mode:"both", v1Win:50, v1Avg:2.43, v1Trades:387 },
+  { name:"Straddle",                 group:"Market Neutral", pair:"BTC/USD",  buyScore:47, sellScore:27, tp:3.5,  sl:-2.3, amount:100, mode:"both", v1Win:63, v1Avg:3.20, v1Trades:464 },
+  { name:"Strangle",                 group:"Market Neutral", pair:"SOL/USD",  buyScore:57, sellScore:37, tp:2.5,  sl:-1.6, amount:100, mode:"both", v1Win:76, v1Avg:2.29, v1Trades:101 },
+  { name:"Synthetic Positions",      group:"Market Neutral", pair:"ETH/USD",  buyScore:62, sellScore:42, tp:2.8,  sl:-1.8, amount:100, mode:"both", v1Win:79, v1Avg:2.57, v1Trades:205 },
+  { name:"Box Spread",               group:"Market Neutral", pair:"BTC/USD",  buyScore:43, sellScore:23, tp:1.5,  sl:-1.0, amount:100, mode:"both", v1Win:58, v1Avg:1.32, v1Trades:200 },
+
+  // ── ARBITRAGE (23) ───────────────────────────────────────────────────────────
+  { name:"CEX-DEX Arbitrage",        group:"Arbitrage",      pair:"ETH/USD",  buyScore:47, sellScore:27, tp:1.4,  sl:-0.9, amount:100, mode:"both", v1Win:59, v1Avg:1.30, v1Trades:103 },
+  { name:"Cross-Chain Arbitrage",    group:"Arbitrage",      pair:"ETH/USD",  buyScore:43, sellScore:23, tp:3.8,  sl:-2.5, amount:100, mode:"both", v1Win:51, v1Avg:3.49, v1Trades:489 },
+  { name:"Triangular Arbitrage",     group:"Arbitrage",      pair:"BTC/USD",  buyScore:43, sellScore:23, tp:1.0,  sl:-0.7, amount:100, mode:"both", v1Win:51, v1Avg:0.95, v1Trades:94  },
+  { name:"Flash Loan Arb",           group:"Arbitrage",      pair:"ETH/USD",  buyScore:47, sellScore:27, tp:2.9,  sl:-1.9, amount:100, mode:"both", v1Win:59, v1Avg:2.62, v1Trades:434 },
+  { name:"AMM Arbitrage",            group:"Arbitrage",      pair:"ETH/USD",  buyScore:62, sellScore:42, tp:3.2,  sl:-2.1, amount:100, mode:"both", v1Win:79, v1Avg:2.89, v1Trades:339 },
+  { name:"Sandwich Prevention",      group:"Arbitrage",      pair:"ETH/USD",  buyScore:47, sellScore:27, tp:2.6,  sl:-1.7, amount:100, mode:"both", v1Win:61, v1Avg:2.40, v1Trades:463 },
+  { name:"MEV Capture",              group:"Arbitrage",      pair:"ETH/USD",  buyScore:52, sellScore:32, tp:2.8,  sl:-1.8, amount:100, mode:"both", v1Win:71, v1Avg:2.56, v1Trades:461 },
+  { name:"Liquidation Arb",          group:"Arbitrage",      pair:"ETH/USD",  buyScore:47, sellScore:27, tp:3.2,  sl:-2.1, amount:100, mode:"both", v1Win:61, v1Avg:2.88, v1Trades:265 },
+  { name:"Funding Rate Arb",         group:"Arbitrage",      pair:"BTC/USD",  buyScore:47, sellScore:27, tp:3.8,  sl:-2.5, amount:100, mode:"both", v1Win:59, v1Avg:3.45, v1Trades:130 },
+  { name:"Perpetual-Spot Basis",     group:"Arbitrage",      pair:"BTC/USD",  buyScore:43, sellScore:23, tp:2.6,  sl:-1.7, amount:100, mode:"both", v1Win:56, v1Avg:2.37, v1Trades:543 },
+  { name:"Options Parity Arb",       group:"Arbitrage",      pair:"BTC/USD",  buyScore:43, sellScore:23, tp:3.4,  sl:-2.2, amount:100, mode:"both", v1Win:57, v1Avg:3.13, v1Trades:241 },
+  { name:"Synthetic Arb",            group:"Arbitrage",      pair:"ETH/USD",  buyScore:57, sellScore:37, tp:2.4,  sl:-1.6, amount:100, mode:"both", v1Win:74, v1Avg:2.18, v1Trades:174 },
+  { name:"Cross-Venue Arb",          group:"Arbitrage",      pair:"BTC/USD",  buyScore:47, sellScore:27, tp:3.4,  sl:-2.2, amount:100, mode:"both", v1Win:61, v1Avg:3.08, v1Trades:314 },
+  { name:"Latency Arbitrage",        group:"Arbitrage",      pair:"BTC/USD",  buyScore:57, sellScore:37, tp:2.2,  sl:-1.4, amount:100, mode:"both", v1Win:73, v1Avg:1.99, v1Trades:172 },
+  { name:"Statistical Arb",          group:"Arbitrage",      pair:"SOL/USD",  buyScore:43, sellScore:23, tp:2.7,  sl:-1.8, amount:100, mode:"both", v1Win:53, v1Avg:2.45, v1Trades:528 },
+  { name:"Pairs Trading",            group:"Arbitrage",      pair:"BTC/USD",  buyScore:43, sellScore:23, tp:0.9,  sl:-0.6, amount:100, mode:"both", v1Win:51, v1Avg:0.86, v1Trades:181 },
+  { name:"Index Arb",                group:"Arbitrage",      pair:"BTC/USD",  buyScore:62, sellScore:42, tp:1.9,  sl:-1.2, amount:100, mode:"both", v1Win:79, v1Avg:1.70, v1Trades:130 },
+  { name:"ETF Premium/Discount",     group:"Arbitrage",      pair:"ETH/USD",  buyScore:43, sellScore:23, tp:1.0,  sl:-0.7, amount:100, mode:"both", v1Win:55, v1Avg:0.91, v1Trades:112 },
+  { name:"ADR Arbitrage",            group:"Arbitrage",      pair:"BTC/USD",  buyScore:57, sellScore:37, tp:1.5,  sl:-1.0, amount:100, mode:"both", v1Win:75, v1Avg:1.32, v1Trades:305 },
+  { name:"Currency Arb",             group:"Arbitrage",      pair:"BTC/USD",  buyScore:43, sellScore:23, tp:1.0,  sl:-0.7, amount:100, mode:"both", v1Win:53, v1Avg:0.95, v1Trades:379 },
+  { name:"Interest Rate Arb",        group:"Arbitrage",      pair:"ETH/USD",  buyScore:52, sellScore:32, tp:3.2,  sl:-2.1, amount:100, mode:"both", v1Win:71, v1Avg:2.93, v1Trades:189 },
+  { name:"Yield Curve Arb",          group:"Arbitrage",      pair:"ETH/USD",  buyScore:57, sellScore:37, tp:1.0,  sl:-0.7, amount:100, mode:"both", v1Win:75, v1Avg:0.92, v1Trades:538 },
+  { name:"Credit Spread Arb",        group:"Arbitrage",      pair:"BTC/USD",  buyScore:47, sellScore:27, tp:0.6,  sl:-0.4, amount:100, mode:"both", v1Win:64, v1Avg:0.57, v1Trades:200 },
+
+  // ── MOMENTUM LONG (31) ───────────────────────────────────────────────────────
+  { name:"Trend Following",          group:"Momentum Long",  pair:"BTC/USD",  buyScore:57, sellScore:37, tp:1.2,  sl:-0.8, amount:100, mode:"both", v1Win:72, v1Avg:1.05, v1Trades:102 },
+  { name:"Momentum Alpha",           group:"Momentum Long",  pair:"SOL/USD",  buyScore:47, sellScore:27, tp:3.0,  sl:-2.0, amount:100, mode:"both", v1Win:63, v1Avg:2.75, v1Trades:468 },
+  { name:"Breakout Trading",         group:"Momentum Long",  pair:"SOL/USD",  buyScore:43, sellScore:23, tp:2.0,  sl:-1.3, amount:100, mode:"both", v1Win:51, v1Avg:1.83, v1Trades:329 },
+  { name:"Moving Average Cross",     group:"Momentum Long",  pair:"BTC/USD",  buyScore:52, sellScore:32, tp:1.8,  sl:-1.2, amount:100, mode:"both", v1Win:66, v1Avg:1.62, v1Trades:79  },
+  { name:"RSI Oversold",             group:"Momentum Long",  pair:"ETH/USD",  buyScore:52, sellScore:32, tp:2.2,  sl:-1.4, amount:100, mode:"both", v1Win:66, v1Avg:1.97, v1Trades:78  },
+  { name:"MACD Signal",              group:"Momentum Long",  pair:"BTC/USD",  buyScore:47, sellScore:27, tp:0.6,  sl:-0.4, amount:100, mode:"both", v1Win:62, v1Avg:0.59, v1Trades:453 },
+  { name:"Bollinger Band Bounce",    group:"Momentum Long",  pair:"ETH/USD",  buyScore:43, sellScore:23, tp:0.7,  sl:-0.5, amount:100, mode:"both", v1Win:54, v1Avg:0.62, v1Trades:152 },
+  { name:"Support/Resistance",       group:"Momentum Long",  pair:"BTC/USD",  buyScore:52, sellScore:32, tp:1.6,  sl:-1.0, amount:100, mode:"both", v1Win:66, v1Avg:1.45, v1Trades:538 },
+  { name:"Volume Profile",           group:"Momentum Long",  pair:"ETH/USD",  buyScore:43, sellScore:23, tp:1.1,  sl:-0.7, amount:100, mode:"both", v1Win:56, v1Avg:1.03, v1Trades:141 },
+  { name:"Order Flow Momentum",      group:"Momentum Long",  pair:"BTC/USD",  buyScore:43, sellScore:23, tp:0.6,  sl:-0.4, amount:100, mode:"both", v1Win:54, v1Avg:0.59, v1Trades:221 },
+  { name:"News Sentiment",           group:"Momentum Long",  pair:"SOL/USD",  buyScore:43, sellScore:23, tp:2.4,  sl:-1.6, amount:100, mode:"both", v1Win:50, v1Avg:2.19, v1Trades:458 },
+  { name:"Social Momentum",          group:"Momentum Long",  pair:"SOL/USD",  buyScore:43, sellScore:23, tp:1.7,  sl:-1.1, amount:100, mode:"both", v1Win:50, v1Avg:1.54, v1Trades:198 },
+  { name:"Whale Tracking",           group:"Momentum Long",  pair:"BTC/USD",  buyScore:52, sellScore:32, tp:3.2,  sl:-2.1, amount:100, mode:"both", v1Win:69, v1Avg:2.92, v1Trades:310 },
+  { name:"Smart Money Flow",         group:"Momentum Long",  pair:"ETH/USD",  buyScore:43, sellScore:23, tp:1.4,  sl:-0.9, amount:100, mode:"both", v1Win:56, v1Avg:1.28, v1Trades:326 },
+  { name:"Accumulation Detection",   group:"Momentum Long",  pair:"BTC/USD",  buyScore:43, sellScore:23, tp:1.7,  sl:-1.1, amount:100, mode:"both", v1Win:54, v1Avg:1.56, v1Trades:287 },
+  { name:"Cup and Handle",           group:"Momentum Long",  pair:"SOL/USD",  buyScore:47, sellScore:27, tp:3.7,  sl:-2.4, amount:100, mode:"both", v1Win:64, v1Avg:3.40, v1Trades:349 },
+  { name:"Bull Flag",                group:"Momentum Long",  pair:"SOL/USD",  buyScore:43, sellScore:23, tp:1.1,  sl:-0.7, amount:100, mode:"both", v1Win:56, v1Avg:0.97, v1Trades:489 },
+  { name:"Ascending Triangle",       group:"Momentum Long",  pair:"BTC/USD",  buyScore:62, sellScore:42, tp:1.6,  sl:-1.0, amount:100, mode:"both", v1Win:79, v1Avg:1.44, v1Trades:139 },
+  { name:"Golden Cross",             group:"Momentum Long",  pair:"BTC/USD",  buyScore:52, sellScore:32, tp:1.0,  sl:-0.7, amount:100, mode:"both", v1Win:66, v1Avg:0.89, v1Trades:199 },
+  { name:"Fibonacci Retracement",    group:"Momentum Long",  pair:"ETH/USD",  buyScore:52, sellScore:32, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:66, v1Avg:2.06, v1Trades:310 },
+  { name:"Elliott Wave",             group:"Momentum Long",  pair:"BTC/USD",  buyScore:62, sellScore:42, tp:2.9,  sl:-1.9, amount:100, mode:"both", v1Win:78, v1Avg:2.65, v1Trades:444 },
+  { name:"Ichimoku Cloud",           group:"Momentum Long",  pair:"ETH/USD",  buyScore:43, sellScore:23, tp:0.9,  sl:-0.6, amount:100, mode:"both", v1Win:52, v1Avg:0.84, v1Trades:197 },
+  { name:"Parabolic SAR",            group:"Momentum Long",  pair:"SOL/USD",  buyScore:47, sellScore:27, tp:1.7,  sl:-1.1, amount:100, mode:"both", v1Win:63, v1Avg:1.58, v1Trades:248 },
+  { name:"ADX Trend Strength",       group:"Momentum Long",  pair:"BTC/USD",  buyScore:47, sellScore:27, tp:1.8,  sl:-1.2, amount:100, mode:"both", v1Win:63, v1Avg:1.60, v1Trades:403 },
+  { name:"Sector Rotation",          group:"Momentum Long",  pair:"AVAX/USD", buyScore:43, sellScore:23, tp:0.6,  sl:-0.4, amount:100, mode:"both", v1Win:51, v1Avg:0.52, v1Trades:136 },
+  { name:"Quality Factor",           group:"Momentum Long",  pair:"ETH/USD",  buyScore:43, sellScore:23, tp:2.0,  sl:-1.3, amount:100, mode:"both", v1Win:55, v1Avg:1.82, v1Trades:290 },
+  { name:"Value Factor",             group:"Momentum Long",  pair:"BNB/USD",  buyScore:47, sellScore:27, tp:3.4,  sl:-2.2, amount:100, mode:"both", v1Win:64, v1Avg:3.10, v1Trades:525 },
+  { name:"Growth Momentum",          group:"Momentum Long",  pair:"SOL/USD",  buyScore:57, sellScore:37, tp:3.0,  sl:-2.0, amount:100, mode:"both", v1Win:74, v1Avg:2.70, v1Trades:429 },
+  { name:"Low Volatility",           group:"Momentum Long",  pair:"BNB/USD",  buyScore:62, sellScore:42, tp:1.4,  sl:-0.9, amount:100, mode:"both", v1Win:79, v1Avg:1.28, v1Trades:500 },
+  { name:"High Beta",                group:"Momentum Long",  pair:"SOL/USD",  buyScore:62, sellScore:42, tp:2.0,  sl:-1.3, amount:100, mode:"both", v1Win:77, v1Avg:1.86, v1Trades:309 },
+  { name:"Small Cap Momentum",       group:"Momentum Long",  pair:"ARB/USD",  buyScore:43, sellScore:23, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:56, v1Avg:2.12, v1Trades:269 }
 ];
 
-function openPresetsModal() {
+function openPresetsModal(filterText) {
   var list = document.getElementById("presets-list"); if (!list) return;
   loadStrategies();
   var existingNames = _strategies.map(function(s){ return s.name; });
+  var q = (filterText !== undefined ? filterText : (document.getElementById("presets-search") ? document.getElementById("presets-search").value : "")).toLowerCase().trim();
 
-  list.innerHTML = V1_PRESETS.map(function(p, i) {
-    var alreadyAdded = existingNames.indexOf(p.name) !== -1;
-    var wrCol = p.v1Win >= 70 ? "var(--green)" : p.v1Win >= 60 ? "var(--amber)" : "var(--text3)";
-    return "<div style='padding:12px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px'>"
-      + "<div>"
-      + "  <div style='font-size:13px;font-weight:600;margin-bottom:3px'>" + p.name + " <span style='font-size:10px;color:var(--text3);font-weight:400;margin-left:6px'>" + p.group + "</span></div>"
-      + "  <div style='font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap'>"
-      + "    <span>Win: <strong style='color:" + wrCol + "'>" + p.v1Win + "%</strong></span>"
-      + "    <span>Avg: <strong style='color:var(--green)'>+" + p.v1Avg + "%</strong></span>"
-      + "    <span>Trades: " + p.v1Trades + "</span>"
-      + "    <span style='color:var(--text3)'>→ " + p.pair + " · Buy ≥" + p.buyScore + " · TP +" + p.tp + "% / SL " + p.sl + "%</span>"
-      + "  </div>"
-      + "</div>"
-      + (alreadyAdded
-        ? "<span style='font-size:11px;color:var(--green);font-weight:600'>✓ Added</span>"
-        : "<button class='btn-purple' style='font-size:11px;padding:5px 14px;flex-shrink:0' onclick='addPreset(" + i + ")'>+ Add</button>"
-      )
-      + "</div>";
-  }).join("");
+  var groups = [
+    { name: "Market Neutral", icon: "⚖️" },
+    { name: "Arbitrage",      icon: "🔄" },
+    { name: "Momentum Long",  icon: "🚀" }
+  ];
+  var html = "";
+
+  groups.forEach(function(grp) {
+    var presets = V1_PRESETS.map(function(p, i){ return { p: p, i: i }; }).filter(function(x) {
+      if (x.p.group !== grp.name) return false;
+      if (!q) return true;
+      return x.p.name.toLowerCase().indexOf(q) !== -1 || x.p.pair.toLowerCase().indexOf(q) !== -1;
+    });
+    if (!presets.length) return;
+
+    var addedCount = presets.filter(function(x){ return existingNames.indexOf(x.p.name) !== -1; }).length;
+    var allAdded   = addedCount === presets.length;
+
+    // Group header row
+    html += "<div style='display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;margin-top:6px'>";
+    html += "<div style='font-size:13px;font-weight:700;color:var(--purple)'>" + grp.icon + " " + grp.name
+          + " <span style='font-size:11px;font-weight:400;color:var(--text3);margin-left:6px'>" + addedCount + " / " + presets.length + " added</span></div>";
+    if (allAdded) {
+      html += "<span style='font-size:11px;color:var(--green);font-weight:600'>✓ All Added</span>";
+    } else {
+      html += "<button class='db-btn' onclick='loadGroupPresets(\"" + grp.name + "\")' style='font-size:11px;padding:4px 10px;color:var(--green);border-color:rgba(34,197,94,0.3)'>+ Add All</button>";
+    }
+    html += "</div>";
+
+    // Strategy rows in this group
+    presets.forEach(function(x) {
+      var p = x.p, i = x.i;
+      var alreadyAdded = existingNames.indexOf(p.name) !== -1;
+      var wrCol = p.v1Win >= 70 ? "var(--green)" : p.v1Win >= 60 ? "var(--amber)" : "var(--text3)";
+      html += "<div style='padding:10px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px'>"
+        + "<div style='min-width:0'>"
+        + "  <div style='font-size:13px;font-weight:600;margin-bottom:2px'>" + p.name + "</div>"
+        + "  <div style='font-size:11px;color:var(--text3);display:flex;gap:12px;flex-wrap:wrap'>"
+        + "    <span>Win: <strong style='color:" + wrCol + "'>" + p.v1Win + "%</strong></span>"
+        + "    <span>Avg: <strong style='color:var(--green)'>+" + p.v1Avg + "%</strong></span>"
+        + "    <span>Trades: " + p.v1Trades + "</span>"
+        + "    <span>" + p.pair + " · Buy ≥" + p.buyScore + " · TP +" + p.tp + "% / SL " + p.sl + "%</span>"
+        + "  </div>"
+        + "</div>"
+        + (alreadyAdded
+          ? "<span style='font-size:11px;color:var(--green);font-weight:600;flex-shrink:0'>✓ Added</span>"
+          : "<button class='btn-purple' style='font-size:11px;padding:5px 14px;flex-shrink:0' onclick='addPreset(" + i + ")'>+ Add</button>"
+        )
+        + "</div>";
+    });
+  });
+
+  if (!html) html = "<div style='text-align:center;color:var(--text3);padding:24px;font-size:13px'>No strategies match your search.</div>";
+  list.innerHTML = html;
 
   var m = document.getElementById("presets-modal");
   if (m) m.style.display = "flex";
+}
+
+function filterPresets() {
+  openPresetsModal();
+}
+
+function loadGroupPresets(group) {
+  loadStrategies();
+  var added = 0;
+  V1_PRESETS.forEach(function(p) {
+    if (p.group !== group) return;
+    if (_strategies.find(function(s){ return s.name === p.name; })) return;
+    _strategies.push({ name: p.name, pair: p.pair, buyScore: p.buyScore, sellScore: p.sellScore,
+      tp: p.tp, sl: p.sl, amount: p.amount, mode: p.mode, enabled: true });
+    added++;
+  });
+  saveStrategies();
+  renderStrategiesList();
+  openPresetsModal();
+  showToast("✅ Added " + added + " " + group + " strategies");
 }
 
 function closePresetsModal() {
@@ -3136,8 +3288,7 @@ function addPreset(idx) {
   saveStrategies();
   renderStrategiesList();
   showToast("✅ " + p.name + " added");
-  // Refresh the modal to show ✓ Added
-  openPresetsModal();
+  openPresetsModal(); // refresh to show ✓ Added (search query preserved)
 }
 
 function loadAllPresets() {
