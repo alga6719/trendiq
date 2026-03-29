@@ -803,6 +803,7 @@ button,input,select,textarea{font-family:inherit}
               <button class="db-btn" id="btnLive"  onclick="setMode('live')" style="font-size:11px;padding:4px 10px">Live</button>
               <button class="db-btn" id="btnSim"   onclick="setMode('sim')"  style="font-size:11px;padding:4px 10px">Sim</button>
               <button class="db-btn" id="btnStop"  onclick="setMode('idle')" style="font-size:11px;padding:4px 10px">Stop</button>
+              <button id="btn-force-trade" onclick="forceSimTrades()" style="display:none;font-size:11px;padding:4px 12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:6px;cursor:pointer;font-weight:600">⚡ Force Trade</button>
             </div>
           </div>
           <!-- Turbo Sim banner -->
@@ -1664,6 +1665,8 @@ function setMode(mode) {
   if (btnLive)  btnLive.className  = "db-btn" + (mode === "live" ? " b-live" : "");
   if (btnSim)   btnSim.className   = "db-btn" + (mode === "sim"  ? " b-live" : "");
   if (btnStop)  btnStop.className  = "db-btn" + (mode !== "idle" ? " b-stop" : "");
+  var ftBtn = document.getElementById("btn-force-trade");
+  if (ftBtn) ftBtn.style.display = mode === "sim" ? "inline-block" : "none";
 
   if (badge) {
     badge.textContent = mode === "live" ? "LIVE" : mode === "sim" ? "SIM" : "IDLE";
@@ -3960,6 +3963,33 @@ function stopAutoTrader() {
   if (_autoTraderLoop) { clearInterval(_autoTraderLoop); _autoTraderLoop = null; }
   botLog("⛔ Auto-trader stopped", "var(--red)");
   updateTurboUI();
+}
+
+// Force-open a sim trade immediately on every enabled strategy that has no open position
+async function forceSimTrades() {
+  if (botMode !== "sim") { showToast("⚠ Force trade only available in Sim mode"); return; }
+  loadStrategies();
+  loadBotPositions();
+  var active = _strategies.filter(function(s){ return s.enabled; });
+  if (!active.length) { showToast("⚠ No enabled strategies"); return; }
+  var fired = 0;
+  for (var i = 0; i < active.length; i++) {
+    var s      = active[i];
+    var posKey = s.name + "|" + s.pair;
+    if (_botPositions[posKey]) continue;  // already has a position
+    var price  = liveData[s.pair] ? liveData[s.pair].price : 0;
+    if (!price) continue;
+    var momEntry = momData.find(function(m){ return m.sym === s.pair; });
+    var score    = momEntry ? momEntry.score : 55;
+    var tp       = _turboSim ? 2.0  : (s.tp  || s.takeProfit || 3);
+    var sl       = _turboSim ? -1.5 : (s.sl  || s.stopLoss  || -2);
+    var forcedStrat = Object.assign({}, s, { tp: tp, sl: sl, _entryScore: score });
+    await autoExecute(forcedStrat, "buy", price,
+      "⚡ Force trade (score " + score + ")", null);
+    if (_turboSim) bumpTurboCount();
+    fired++;
+  }
+  showToast(fired > 0 ? ("⚡ Forced " + fired + " sim trade" + (fired > 1 ? "s" : "")) : "⚠ All strategies already have open positions");
 }
 
 async function runAutoTraderCycle() {
