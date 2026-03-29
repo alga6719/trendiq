@@ -1,68 +1,69 @@
-// TrendIQ Service Worker
-// Strategy: network-first for API calls, cache-first for static assets
+// TrendIQ Service Worker v3
+// Strategy: ALWAYS network-first for HTML (so updates show immediately),
+//           network-first for APIs, cache-first only for icons/manifest
 
-const CACHE_NAME = "trendiq-v1";
-const STATIC_ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.json",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png"
-];
+const CACHE_NAME = "trendiq-v3";
 
-// ── Install: pre-cache static shell ──────────────────────────────────────────
+// ── Install: skip waiting immediately ────────────────────────────────────────
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        // Don't fail install if icons aren't present yet
-        console.warn("[SW] Pre-cache partial failure:", err.message);
-      });
-    })
-  );
   self.skipWaiting();
 });
 
-// ── Activate: clean up old caches ────────────────────────────────────────────
+// ── Activate: delete ALL old caches, claim clients ───────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    )
+      Promise.all(keys.map((key) => caches.delete(key)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // ── Fetch: route requests ─────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Always network-first for API routes and external data
+  // Never cache HTML — always fetch fresh from network
+  if (url.pathname === "/" || url.pathname.endsWith(".html")) {
+    event.respondWith(networkOnly(event.request));
+    return;
+  }
+
+  // Always network-first for API routes and external data feeds
   if (
     url.pathname.startsWith("/api/") ||
     url.hostname.includes("coingecko") ||
     url.hostname.includes("binance") ||
     url.hostname.includes("kraken") ||
-    url.hostname.includes("neon")
+    url.hostname.includes("neon") ||
+    url.hostname.includes("alternative.me")
   ) {
     event.respondWith(networkFirst(event.request));
     return;
   }
 
-  // Cache-first for static HTML/assets (the app shell)
-  event.respondWith(cacheFirst(event.request));
+  // Cache-first only for icons and manifest (rarely change)
+  if (url.pathname.startsWith("/icons/") || url.pathname === "/manifest.json") {
+    event.respondWith(cacheFirst(event.request));
+    return;
+  }
+
+  // Everything else: network-first
+  event.respondWith(networkFirst(event.request));
 });
+
+async function networkOnly(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    return offlineFallback();
+  }
+}
 
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
     return response;
   } catch {
-    // Offline fallback — return cached version if available
     const cached = await caches.match(request);
     return cached || offlineFallback();
   }
@@ -71,7 +72,6 @@ async function networkFirst(request) {
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
-
   try {
     const response = await fetch(request);
     if (response.ok) {

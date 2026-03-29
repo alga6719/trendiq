@@ -3826,7 +3826,7 @@ async function fetchSolTokens(manual) {
           chg5m:   parseFloat(attr.price_change_percentage?.m5 || 0),
           age:     age,
           dex:     dexInfo.name || "Raydium",
-          jupUrl:  "https://jup.ag/swap/SOL-" + mint,
+          jupUrl:  "https://jup.ag/?inputMint=So11111111111111111111111111111111111111112&outputMint=" + mint,
           dexUrl:  "https://dexscreener.com/solana/" + (attr.address || mint),
           rugUrl:  "https://rugcheck.xyz/tokens/" + mint,
           source:  "GeckoTerminal"
@@ -3858,7 +3858,7 @@ async function fetchSolTokens(manual) {
               chg5m:   0,
               age:     0,
               dex:     "Solana",
-              jupUrl:  "https://jup.ag/swap/SOL-" + mint,
+              jupUrl:  "https://jup.ag/?inputMint=So11111111111111111111111111111111111111112&outputMint=" + mint,
               dexUrl:  "https://dexscreener.com/solana/" + mint,
               rugUrl:  "https://rugcheck.xyz/tokens/" + mint,
               source:  "DexScreener"
