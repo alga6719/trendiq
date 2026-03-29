@@ -521,8 +521,7 @@ button,input,select,textarea{font-family:inherit}
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
             <div class="card-h">Strategies</div>
             <div style="display:flex;gap:8px">
-              <button class="db-btn" style="font-size:12px;padding:7px 14px;color:var(--purple);border-color:rgba(139,92,246,0.35)" onclick="openPresetsModal()">📋 Load v1.0 Presets</button>
-              <button class="btn-purple" style="font-size:12px;padding:7px 14px" onclick="openStrategyEditor(-1)">+ New Strategy</button>
+              <button class="btn-purple" style="font-size:12px;padding:7px 14px" onclick="openNewStrategyPicker()">+ New Strategy</button>
             </div>
           </div>
 
@@ -545,6 +544,33 @@ button,input,select,textarea{font-family:inherit}
               </div>
             </div>
           </div>
+          <!-- New Strategy Picker Modal -->
+          <div id="new-strat-picker" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;padding:20px">
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:420px;padding:28px 24px">
+              <div style="font-size:16px;font-weight:700;margin-bottom:6px">+ New Strategy</div>
+              <p style="font-size:13px;color:var(--text3);margin-bottom:22px">Start from a proven v1.0 strategy or build your own from scratch.</p>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <button onclick="document.getElementById('new-strat-picker').style.display='none';openPresetsModal()" style="display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:10px;border:1px solid rgba(139,92,246,0.4);background:rgba(139,92,246,0.08);cursor:pointer;text-align:left;width:100%">
+                  <span style="font-size:26px;line-height:1">📋</span>
+                  <div>
+                    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px">Browse v1.0 Presets</div>
+                    <div style="font-size:12px;color:var(--text3)">98 battle-tested strategies across Market Neutral, Arbitrage &amp; Momentum</div>
+                  </div>
+                </button>
+                <button onclick="document.getElementById('new-strat-picker').style.display='none';openStrategyEditor(-1)" style="display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:10px;border:1px solid var(--border2);background:var(--bg3);cursor:pointer;text-align:left;width:100%">
+                  <span style="font-size:26px;line-height:1">✏️</span>
+                  <div>
+                    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px">Build from Scratch</div>
+                    <div style="font-size:12px;color:var(--text3)">Set your own pair, buy/sell scores, TP/SL and amount</div>
+                  </div>
+                </button>
+              </div>
+              <div style="margin-top:18px;text-align:right">
+                <button class="db-btn" onclick="document.getElementById('new-strat-picker').style.display='none'" style="font-size:12px;padding:6px 14px">Cancel</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Inline Strategy Editor -->
           <div id="strat-editor" style="display:none;margin-bottom:16px">
             <div class="card">
@@ -3185,6 +3211,11 @@ var V1_PRESETS = [
   { name:"High Beta",                group:"Momentum Long",  pair:"SOL/USD",  buyScore:62, sellScore:42, tp:2.0,  sl:-1.3, amount:100, mode:"both", v1Win:77, v1Avg:1.86, v1Trades:309 },
   { name:"Small Cap Momentum",       group:"Momentum Long",  pair:"ARB/USD",  buyScore:43, sellScore:23, tp:2.3,  sl:-1.5, amount:100, mode:"both", v1Win:56, v1Avg:2.12, v1Trades:269 }
 ];
+
+function openNewStrategyPicker() {
+  var el = document.getElementById("new-strat-picker");
+  if (el) el.style.display = "flex";
+}
 
 function openPresetsModal(filterText) {
   var list = document.getElementById("presets-list"); if (!list) return;
