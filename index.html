@@ -1375,15 +1375,9 @@ function renderKrakenBalance() {
   var dc = document.getElementById("d-btc-price");
   if (dc && liveData["BTC/USD"]) dc.textContent = "$" + fP(liveData["BTC/USD"].price);
 
-  // Refresh portfolio allocation chart if Portfolio tab is open (throttled — max once per 10s)
+  // Refresh portfolio allocation chart if Portfolio tab is open (in-place update, no flicker)
   var portTab = document.getElementById("dtab-portfolio");
-  if (portTab && portTab.classList.contains("active")) {
-    var now = Date.now();
-    if (!renderKrakenBalance._lastChart || now - renderKrakenBalance._lastChart > 10000) {
-      renderKrakenBalance._lastChart = now;
-      initPortfolioChart();
-    }
-  }
+  if (portTab && portTab.classList.contains("active")) initPortfolioChart();
 }
 
 function renderKrakenOrders() {
@@ -2355,7 +2349,8 @@ function showDash(tab,el) {
   if(el) el.classList.add("active");
   setTimeout(function(){
     if(tab==="dashboard")  { initPerfChart(); initSentimentGauge(); }
-    if(tab==="portfolio")  { renderPortfolioPositions(); initPortfolioChart(); fetchKraken(); }
+    if(tab==="portfolio")  { renderPortfolioPositions(); initPortfolioChart(); fetchKraken(); startPortfolioPnlLoop(); }
+    else { stopPortfolioPnlLoop(); }
     if(tab==="history")    { fetchKraken(); if(krakenTrades.length){ populatePairFilter(); var ce=document.getElementById("hist-count");if(ce)ce.textContent=krakenTrades.length+" trades"; } }
     if(tab==="settings")   { initSettingsTab(); renderMLSettingsPanel(); }
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
@@ -2586,37 +2581,74 @@ document.addEventListener("click", function(e) {
 // ─── PORTFOLIO POSITIONS + QUICK TRADE ───────────────────────────────────────
 function renderPortfolioPositions() {
   loadBotPositions();
-  var el    = document.getElementById("port-positions-list"); if (!el) return;
+  var el     = document.getElementById("port-positions-list"); if (!el) return;
   var modeEl = document.getElementById("port-pos-mode");
-  var keys  = Object.keys(_botPositions);
+  var keys   = Object.keys(_botPositions);
+
   if (!keys.length) {
     el.innerHTML = "<div style='color:var(--text3);font-size:13px;padding:8px 0'>No open positions. Start the Sim or Live bot to see trades here.</div>";
     if (modeEl) modeEl.textContent = "";
     return;
   }
+
   if (modeEl) modeEl.textContent = botMode === "live" ? "🟢 Live" : botMode === "sim" ? "🔵 Sim" : "";
-  var html = "<table class='tbl'><thead><tr><th>Strategy</th><th>Pair</th><th>Entry $</th><th>Current $</th><th>P&amp;L</th><th>Duration</th><th></th></tr></thead><tbody>";
+
+  var totalUsd = 0, totalPnl = 0;
+  var html = "<table class='tbl'><thead><tr>" +
+    "<th>Strategy</th><th>Pair</th><th>Entry</th><th>Now</th><th>P&amp;L %</th><th>P&amp;L $</th><th>Dur</th><th></th>" +
+    "</tr></thead><tbody>";
+
   keys.forEach(function(k) {
     var p      = _botPositions[k];
     var price  = liveData[p.pair] ? liveData[p.pair].price : p.entryPrice;
-    var pnlPct = ((price - p.entryPrice) / p.entryPrice * 100);
-    var pnlUsd = (price - p.entryPrice) * p.qty;
+    var qty    = p.qty || (p.amount && p.entryPrice ? p.amount / p.entryPrice : 0);
+    var pnlPct = p.entryPrice ? ((price - p.entryPrice) / p.entryPrice * 100) : 0;
+    var pnlUsd = qty ? (price - p.entryPrice) * qty : 0;
     var dur    = Math.round((Date.now() - p.entryTime) / 60000);
-    var durStr = dur < 60 ? dur + "m" : (Math.floor(dur/60)) + "h " + (dur%60) + "m";
+    var durStr = dur < 60 ? dur + "m" : (Math.floor(dur/60)) + "h " + (dur % 60) + "m";
     var pnlCol = pnlPct >= 0 ? "var(--green)" : "var(--red)";
-    var pnlStr = (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "% / " + (pnlUsd >= 0 ? "+" : "") + "$" + Math.abs(pnlUsd).toFixed(2);
+    var pnlPctStr = (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "%";
+    var pnlUsdStr = (pnlUsd >= 0 ? "+" : "−") + "$" + Math.abs(pnlUsd).toFixed(2);
+    totalUsd += p.amount || 0;
+    totalPnl += pnlUsd;
+
     html += "<tr>" +
-      "<td style='font-weight:600;font-size:12px'>" + (p.stratName || k.split("|")[0]) + "</td>" +
-      "<td>" + p.pair + "</td>" +
-      "<td class='mono'>$" + fP(p.entryPrice) + "</td>" +
-      "<td class='mono'>$" + fP(price) + "</td>" +
-      "<td style='font-weight:600;color:" + pnlCol + "'>" + pnlStr + "</td>" +
-      "<td style='font-size:12px;color:var(--text3)'>" + durStr + "</td>" +
-      "<td><button onclick='closePortfolioPosition(\"" + k + "\")' style='font-size:11px;padding:3px 10px;border-radius:5px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:var(--red);cursor:pointer'>Close</button></td>" +
+      "<td style='font-weight:600;font-size:12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>" + (p.stratName || k.split("|")[0]) + "</td>" +
+      "<td style='font-weight:600'>" + p.pair + "</td>" +
+      "<td class='mono' style='font-size:12px'>$" + fP(p.entryPrice) + "</td>" +
+      "<td class='mono' style='font-size:12px'>$" + fP(price) + "</td>" +
+      "<td style='font-weight:700;color:" + pnlCol + "'>" + pnlPctStr + "</td>" +
+      "<td style='font-weight:700;color:" + pnlCol + "'>" + pnlUsdStr + "</td>" +
+      "<td style='font-size:11px;color:var(--text3)'>" + durStr + "</td>" +
+      "<td><button onclick='closePortfolioPosition(\"" + k + "\")' style='font-size:11px;padding:3px 10px;border-radius:5px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:var(--red);cursor:pointer'>✕ Close</button></td>" +
       "</tr>";
   });
+
+  // Summary footer row
+  var sumCol = totalPnl >= 0 ? "var(--green)" : "var(--red)";
+  html += "<tr style='border-top:2px solid var(--border2);background:var(--bg3)'>" +
+    "<td colspan='4' style='font-size:12px;font-weight:700;color:var(--text2)'>Total (" + keys.length + " positions · $" + totalUsd.toFixed(0) + " deployed)</td>" +
+    "<td colspan='2' style='font-weight:700;color:" + sumCol + ";font-size:13px'>" +
+      (totalPnl >= 0 ? "+" : "−") + "$" + Math.abs(totalPnl).toFixed(2) + " unrealized" +
+    "</td>" +
+    "<td colspan='2'></td></tr>";
+
   html += "</tbody></table>";
   el.innerHTML = html;
+}
+
+// Live P&L refresh loop — only runs while Portfolio tab is active
+var _portPnlLoop = null;
+function startPortfolioPnlLoop() {
+  if (_portPnlLoop) return;
+  _portPnlLoop = setInterval(function() {
+    var t = document.getElementById("dtab-portfolio");
+    if (!t || !t.classList.contains("active")) { stopPortfolioPnlLoop(); return; }
+    renderPortfolioPositions();
+  }, 3000);  // refresh P&L every 3 seconds
+}
+function stopPortfolioPnlLoop() {
+  if (_portPnlLoop) { clearInterval(_portPnlLoop); _portPnlLoop = null; }
 }
 
 async function closePortfolioPosition(posKey) {
@@ -2959,41 +2991,42 @@ function _initPerfChartStatic(){
 // ─── CHARTS (other static charts) ────────────────────────────────────────────
 var CO={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#454d6a",font:{size:11},maxRotation:0},grid:{display:false},border:{display:false}},y:{ticks:{color:"#454d6a",font:{size:11}},grid:{color:"rgba(255,255,255,0.025)"},border:{display:false}}}};
 function initPortfolioChart() {
-  var ctx = document.getElementById("portfolioChart"); if (!ctx) return;
-  var empty = document.getElementById("port-chart-empty");
+  var canvasEl = document.getElementById("portfolioChart"); if (!canvasEl) return;
+  var empty    = document.getElementById("port-chart-empty");
 
-  // Build allocation from krakenBalance + liveData
-  var priceMap = {XBT:"BTC/USD",XXBT:"BTC/USD",ETH:"ETH/USD",XETH:"ETH/USD",SOL:"SOL/USD",XSOL:"SOL/USD",AVAX:"AVAX/USD",BNB:"BNB/USD",ARB:"ARB/USD",OP:"OP/USD"};
-  var nameMap  = {XBT:"BTC",XXBT:"BTC",ETH:"ETH",XETH:"ETH",SOL:"SOL",XSOL:"SOL",AVAX:"AVAX",BNB:"BNB",ARB:"ARB",OP:"OP",ZUSD:"USD",USD:"USD",USDT:"USDT",USDC:"USDC"};
+  var priceMap = {XBT:"BTC/USD",XXBT:"BTC/USD",ETH:"ETH/USD",XETH:"ETH/USD",SOL:"SOL/USD",XSOL:"SOL/USD",AVAX:"AVAX/USD",BNB:"BNB/USD",ARB:"ARB/USD",OP:"OP/USD",WIF:"WIF/USD",JUP:"JUP/USD"};
+  var nameMap  = {XBT:"BTC",XXBT:"BTC",ETH:"ETH",XETH:"ETH",SOL:"SOL",XSOL:"SOL",AVAX:"AVAX",BNB:"BNB",ARB:"ARB",OP:"OP",ZUSD:"USD",USD:"USD",USDT:"USDT",USDC:"USDC",WIF:"WIF",JUP:"JUP"};
   var COLORS   = ["#8b5cf6","#22c55e","#3b82f6","#f59e0b","#ef4444","#06b6d4","#ec4899","#a78bfa"];
 
   var items = [];
   Object.keys(krakenBalance).forEach(function(k) {
     var amt = parseFloat(krakenBalance[k]);
-    if (!amt || amt <= 0) return;
+    if (!amt || amt <= 0.0001) return;
     var usd = 0;
     if (k==="ZUSD"||k==="USD"||k==="USDT"||k==="USDC"||k==="DAI") {
       usd = amt;
     } else if (priceMap[k] && liveData[priceMap[k]]) {
       usd = amt * liveData[priceMap[k]].price;
+    } else if (liveData[k+"/USD"]) {
+      usd = amt * liveData[k+"/USD"].price;   // fallback: try direct pair
     }
-    if (usd > 0.01) items.push({label: nameMap[k] || k, value: usd});
+    if (usd > 0.01) items.push({ label: nameMap[k] || k, value: usd, amt: amt });
   });
 
   var listEl = document.getElementById("port-alloc-list");
   if (!items.length) {
-    ctx.style.display = "none";
+    canvasEl.style.display = "none";
     if (empty) empty.style.display = "block";
     if (listEl) listEl.innerHTML = "<div style='color:var(--text3);font-size:13px'>No balance data — connect Kraken in Settings.</div>";
     return;
   }
-  ctx.style.display = "block";
+  canvasEl.style.display = "block";
   if (empty) empty.style.display = "none";
 
-  var total = items.reduce(function(s,i){return s+i.value;},0);
-  items.sort(function(a,b){return b.value-a.value;});
+  var total = items.reduce(function(s,i){ return s + i.value; }, 0);
+  items.sort(function(a,b){ return b.value - a.value; });
 
-  // Rebuild allocation list
+  // ── Update allocation list (always) ──
   if (listEl) {
     var html = "";
     items.forEach(function(item, idx) {
@@ -3001,36 +3034,53 @@ function initPortfolioChart() {
       var col = COLORS[idx % COLORS.length];
       html += "<div style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)'>";
       html += "<div style='width:10px;height:10px;border-radius:2px;background:"+col+";flex-shrink:0'></div>";
-      html += "<div style='flex:1;font-size:13px;font-weight:600'>"+item.label+"</div>";
+      html += "<div style='flex:1'><div style='font-size:13px;font-weight:600'>"+item.label+"</div>";
+      html += "<div style='font-size:11px;color:var(--text3)'>"+item.amt.toFixed(item.amt < 0.01 ? 6 : 4)+" "+item.label+"</div></div>";
       html += "<div style='text-align:right'><div style='font-size:13px;font-weight:600;font-family:\"JetBrains Mono\",monospace'>$"+item.value.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})+"</div>";
       html += "<div style='font-size:11px;color:var(--text3)'>"+pct+"%</div></div></div>";
     });
     listEl.innerHTML = html;
   }
 
-  // Rebuild doughnut chart
-  if (charts.portfolio) { charts.portfolio.destroy(); charts.portfolio = null; }
-  charts.portfolio = new Chart(ctx, {
+  // ── Update chart in-place (no destroy/recreate = no flicker) ──
+  var newLabels = items.map(function(i){ return i.label; });
+  var newData   = items.map(function(i){ return parseFloat(i.value.toFixed(2)); });
+  var newColors = items.map(function(_,idx){ return COLORS[idx % COLORS.length]; });
+
+  if (charts.portfolio) {
+    // Smooth in-place update — avoids the destroy/recreate flash
+    charts.portfolio.data.labels                        = newLabels;
+    charts.portfolio.data.datasets[0].data             = newData;
+    charts.portfolio.data.datasets[0].backgroundColor  = newColors;
+    charts.portfolio._totalVal = total;  // store for tooltip
+    charts.portfolio.update("none");     // "none" = instant, no animation flash
+    return;
+  }
+
+  // First creation
+  charts.portfolio = new Chart(canvasEl, {
     type: "doughnut",
     data: {
-      labels: items.map(function(i){return i.label;}),
+      labels: newLabels,
       datasets: [{
-        data:            items.map(function(i){return parseFloat(i.value.toFixed(2));}),
-        backgroundColor: items.map(function(_,idx){return COLORS[idx%COLORS.length];}),
-        borderWidth: 2,
-        borderColor: "rgba(11,13,20,0.8)"
+        data: newData, backgroundColor: newColors,
+        borderWidth: 2, borderColor: "rgba(11,13,20,0.8)"
       }]
     },
     options: {
       responsive: false, maintainAspectRatio: false,
-      animation: { duration: 250 },
+      animation: { duration: 300 },
       cutout: "65%",
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx) { return " "+ctx.label+": $"+ctx.parsed.toLocaleString("en-US",{maximumFractionDigits:2})+" ("+((ctx.parsed/total*100).toFixed(1))+"%)"; } } }
+        tooltip: { callbacks: { label: function(c) {
+          var t = (charts.portfolio && charts.portfolio._totalVal) || total;
+          return " "+c.label+": $"+c.parsed.toLocaleString("en-US",{maximumFractionDigits:2})+" ("+((c.parsed/t*100).toFixed(1))+"%)";
+        }}}
       }
     }
   });
+  charts.portfolio._totalVal = total;
 }
 function initStratChart() {
   if (krakenTrades.length > 0) {
