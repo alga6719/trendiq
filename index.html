@@ -4560,6 +4560,14 @@ async function autoExecute(strat, side, price, reason, existingPos) {
     var qty = strat.amount / price;
 
     if (botMode === "live") {
+      // ── Pre-flight: check available USD balance before placing order ──
+      var availUsd = 0;
+      var usdKeys  = ["ZUSD","USD","USDT","USDC"];
+      usdKeys.forEach(function(k){ availUsd += parseFloat(krakenBalance[k] || 0); });
+      if (availUsd < strat.amount) {
+        botLog(ts + "  ⚠ SKIPPED BUY " + strat.pair + " — need $" + strat.amount.toFixed(2) + ", have $" + availUsd.toFixed(2) + " USD", "var(--amber)");
+        return;
+      }
       try {
         var res = await kProxy("/0/private/AddOrder", {
           pair:      krakenPairName(strat.pair),
@@ -4623,8 +4631,16 @@ async function autoExecute(strat, side, price, reason, existingPos) {
         var txId2 = (res2.result && res2.result.txid) ? res2.result.txid[0] : "?";
         botLog(ts + "  🔴 LIVE SELL " + strat.pair + " @ $" + fP(price) + "  P&L: " + pnlStr + "  " + reason + "  txid:" + txId2, logCol);
       } catch(e) {
-        botLog(ts + "  ❌ SELL FAILED " + strat.pair + " — " + e.message, "var(--red)");
-        return;  // don't wipe position if sell failed
+        // If Kraken says "Insufficient funds" the position doesn't actually exist on exchange —
+        // it's a phantom in our local state. Clear it so the bot stops retrying.
+        if (e.message && e.message.indexOf("Insufficient funds") !== -1) {
+          botLog(ts + "  🗑 Cleared phantom position " + strat.pair + " (not held on Kraken)", "var(--amber)");
+          delete _botPositions[posKey];
+          saveBotPositions();
+        } else {
+          botLog(ts + "  ❌ SELL FAILED " + strat.pair + " — " + e.message, "var(--red)");
+        }
+        return;
       }
     } else {
       botLog(ts + "  🔵 SIM SELL  " + strat.pair + " @ $" + fP(price) + "  P&L: " + pnlStr + "  " + reason, logCol);
