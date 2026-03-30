@@ -840,6 +840,7 @@ button,input,select,textarea{font-family:inherit}
               <button class="db-btn" id="btnSim"   onclick="setMode('sim')"  style="font-size:11px;padding:4px 10px">Sim</button>
               <button class="db-btn" id="btnStop"  onclick="setMode('idle')" style="font-size:11px;padding:4px 10px">Stop</button>
               <button id="btn-force-trade" onclick="forceSimTrades()" style="display:none;font-size:11px;padding:4px 12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:6px;cursor:pointer;font-weight:600">⚡ Force Trade</button>
+              <span id="regime-badge" style="font-size:10px;padding:3px 9px;border-radius:20px;background:var(--bg3);color:var(--text3);font-weight:600">Detecting…</span>
             </div>
           </div>
           <!-- Turbo Sim banner -->
@@ -2333,7 +2334,7 @@ function showDash(tab,el) {
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
     if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
     if(tab==="ml")         { renderMLAccuracy(); }
-    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); loadTurboState(); updateTurboUI(); refreshAccuracySignals(); }
+    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); loadTurboState(); updateTurboUI(); refreshAccuracySignals(); updateRegimeBadge(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
       else { renderMomTopCards(); renderMomTable(); renderMomAI(); }
@@ -4120,6 +4121,100 @@ function stopAutoTrader() {
   updateTurboUI();
 }
 
+// ─── REGIME DETECTION + SESSION GATING ────────────────────────────────────────
+// Classifies the current market state using momentum scores across all tracked
+// pairs, then gates strategies so only the right type fires in the right regime.
+//
+// REGIMES:
+//   "trending_up"   — avg score ≥ 65  →  Momentum Long strategies ✓, others OK
+//   "trending_down" — avg score ≤ 35  →  only Market Neutral / Arbitrage allowed
+//   "ranging"       — avg score 36-64 →  all OK, prefer Mean Reversion
+//   "high_vol"      — spread > 40 pts →  reduce all sizes 30%, tighter SL
+//
+// SESSIONS (UTC):
+//   Asia    00:00–08:00  — low vol, prefer stable pairs (BTC, ETH)
+//   London  08:00–13:00  — high vol, all strategies OK
+//   NY      13:00–22:00  — high vol, all strategies OK
+//   Overlap 22:00–00:00  — transition, cautious mode
+
+var _regime = null;         // last computed regime object
+var _regimeTs = 0;          // timestamp of last computation
+
+function detectMarketRegime() {
+  // Re-use cached result for up to 60 s
+  if (_regime && Date.now() - _regimeTs < 60000) return _regime;
+
+  if (!momData || !momData.length) {
+    _regime = { name: "unknown", label: "Unknown", color: "var(--text3)", scoreAdj: 0, allowAll: true };
+    return _regime;
+  }
+
+  var scores  = momData.map(function(m){ return m.score; });
+  var avg     = scores.reduce(function(a,b){return a+b;},0) / scores.length;
+  var maxS    = Math.max.apply(null, scores);
+  var minS    = Math.min.apply(null, scores);
+  var spread  = maxS - minS;
+
+  var name, label, color, scoreAdj, blockMomentum, onlyNeutral;
+  blockMomentum = false; onlyNeutral = false;
+
+  if (spread > 40) {
+    // High divergence across pairs → volatile / choppy
+    name = "high_vol"; label = "⚡ High Volatility"; color = "var(--amber)"; scoreAdj = -10;
+  } else if (avg >= 65) {
+    name = "trending_up"; label = "📈 Trending Up"; color = "var(--green)"; scoreAdj = +8;
+  } else if (avg <= 35) {
+    name = "trending_down"; label = "📉 Trending Down"; color = "var(--red)"; scoreAdj = -8;
+    blockMomentum = true;   // block pure momentum-long strategies
+  } else {
+    name = "ranging"; label = "↔ Ranging"; color = "#60a5fa"; scoreAdj = 0;
+  }
+
+  _regime = { name: name, label: label, color: color, scoreAdj: scoreAdj,
+              blockMomentum: blockMomentum, avgScore: Math.round(avg), spread: Math.round(spread) };
+  _regimeTs = Date.now();
+  return _regime;
+}
+
+function getTradingSession() {
+  var h = new Date().getUTCHours();
+  if (h >= 0  && h < 8)  return { name: "asia",    label: "🌏 Asia",    caution: true  };
+  if (h >= 8  && h < 13) return { name: "london",  label: "🇬🇧 London",  caution: false };
+  if (h >= 13 && h < 22) return { name: "ny",      label: "🗽 NY",       caution: false };
+  return                         { name: "overlap", label: "🔄 Overlap",  caution: true  };
+}
+
+// Returns true if a strategy should be BLOCKED given current regime + session
+function isStrategyGated(strat, regime, session) {
+  if (!strat || !regime) return false;
+  var name = (strat.name || "").toLowerCase();
+  var isMomentumLong = name.indexOf("momentum") !== -1 || strat.mode === "buy";
+  var isArb          = name.indexOf("arb") !== -1 || name.indexOf("arbitrage") !== -1;
+  var isNeutral      = name.indexOf("neutral") !== -1 || name.indexOf("mean") !== -1;
+
+  // In trending_down: block all pure momentum-long strategies
+  if (regime.blockMomentum && isMomentumLong && !isArb && !isNeutral) return true;
+
+  // In Asia session + high_vol: only allow BTC and ETH
+  if (session.caution && regime.name === "high_vol") {
+    var pair = strat.pair || "";
+    if (pair.indexOf("BTC") === -1 && pair.indexOf("ETH") === -1) return true;
+  }
+
+  return false;
+}
+
+// Update the regime badge in the Sniper tab header (if present)
+function updateRegimeBadge() {
+  var r = detectMarketRegime();
+  var s = getTradingSession();
+  var el = document.getElementById("regime-badge");
+  if (el) {
+    el.textContent = r.label + " · " + s.label;
+    el.style.color = r.color;
+  }
+}
+
 // ─── ACCURACY SIGNALS ─────────────────────────────────────────────────────────
 // Three real-time signals that gate / boost trade decisions:
 //  1. Fear & Greed Gate   — uses cached fngCache value
@@ -4355,6 +4450,22 @@ async function runAutoTraderCycle() {
     }
 
     // ── NO POSITION: look for a buy signal ──
+    // ── REGIME + SESSION GATE (skip if Turbo Sim) ──
+    if (!(_turboSim && botMode === "sim")) {
+      var _reg = detectMarketRegime();
+      var _ses = getTradingSession();
+      if (isStrategyGated(s, _reg, _ses)) {
+        // Strategy not appropriate for current regime/session — skip silently
+        // (log only once per 5 min to avoid log spam)
+        var _gKey = "gateLog_" + s.name;
+        if (!window[_gKey] || Date.now() - window[_gKey] > 300000) {
+          botLog(new Date().toLocaleTimeString() + "  🚫 GATED  " + s.name + " (" + s.pair + ") — " + _reg.label + " / " + _ses.label, "var(--text3)");
+          window[_gKey] = Date.now();
+        }
+        continue;
+      }
+    }
+
     var effectiveBuyScore = s.buyScore;
     var effectiveTP = pos ? pos.tp : (s.tp || 3);
     var effectiveSL = pos ? pos.sl : (s.sl || -2);
@@ -4364,10 +4475,13 @@ async function runAutoTraderCycle() {
       effectiveSL  = -1.5;
     }
 
-    // ── ACCURACY SIGNAL ADJUSTMENTS ──
-    // Apply cached signal score adjustments (F&G gate, SOL whale, order book)
+    // ── ACCURACY SIGNAL + REGIME ADJUSTMENTS ──
+    // Apply regime, F&G gate, SOL whale, and order book score adjustments
     var adjustedScore = score;
     if (!(_turboSim && botMode === "sim")) {
+      // Regime adjustment (computed once per cycle above)
+      var _regAdj = (_regime && _regime.scoreAdj) ? _regime.scoreAdj : 0;
+      adjustedScore += _regAdj;
       // F&G: Extreme Fear — only counter-trend strategies get a pass; penalise momentum longs
       if (_accSignals.fng && _accSignals.fng.scoreAdj) {
         var isMomentum = s.mode === "buy" || (s.name && s.name.toLowerCase().indexOf("momentum") !== -1);
@@ -4401,6 +4515,7 @@ async function runAutoTraderCycle() {
   }
 
   renderBotPositions();
+  updateRegimeBadge();
   // Refresh bot status metric card
   var posCount = Object.keys(_botPositions).length;
   var bst = document.getElementById("bot-status");
