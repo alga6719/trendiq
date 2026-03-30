@@ -97,6 +97,42 @@ function calcScore(d) {
   return Math.round(Math.min(99, Math.max(5, 50 + trend24 + volPts + mom1h + trendConf + volDamp)));
 }
 
+// ── Regime detection (mirrors browser detectMarketRegime) ─────────────────────
+function detectRegime(priceData) {
+  const scores = Object.values(priceData).map(d => d.score);
+  if (!scores.length) return { name: "unknown", scoreAdj: 0, blockMomentum: false };
+  const avg    = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const maxS   = Math.max(...scores);
+  const minS   = Math.min(...scores);
+  const spread = maxS - minS;
+
+  if (spread > 40)  return { name: "high_vol",      label: "High Volatility", scoreAdj: -10, blockMomentum: false };
+  if (avg >= 65)    return { name: "trending_up",   label: "Trending Up",     scoreAdj: +8,  blockMomentum: false };
+  if (avg <= 35)    return { name: "trending_down", label: "Trending Down",   scoreAdj: -8,  blockMomentum: true  };
+  return              { name: "ranging",          label: "Ranging",         scoreAdj: 0,   blockMomentum: false };
+}
+
+function getTradingSession() {
+  const h = new Date().getUTCHours();
+  if (h >= 0  && h < 8)  return { name: "asia",    caution: true  };
+  if (h >= 8  && h < 13) return { name: "london",  caution: false };
+  if (h >= 13 && h < 22) return { name: "ny",      caution: false };
+  return                         { name: "overlap", caution: true  };
+}
+
+function isStrategyGated(strat, regime, session) {
+  const name           = (strat.name || "").toLowerCase();
+  const isMomentumLong = name.includes("momentum") || strat.mode === "buy";
+  const isArb          = name.includes("arb") || name.includes("arbitrage");
+  const isNeutral      = name.includes("neutral") || name.includes("mean");
+  if (regime.blockMomentum && isMomentumLong && !isArb && !isNeutral) return true;
+  if (session.caution && regime.name === "high_vol") {
+    const pair = strat.pair || "";
+    if (!pair.includes("BTC") && !pair.includes("ETH")) return true;
+  }
+  return false;
+}
+
 // ── Kraken order placement ─────────────────────────────────────────────────────
 function krakenSign(path, nonce, postData, secret) {
   const secretBuffer = Buffer.from(secret, "base64");
@@ -213,7 +249,12 @@ async function runBotCycle(client) {
   const positions = {};
   posQ.rows.forEach(p => { positions[p.pos_key] = p; });
 
-  // 4. Process each enabled strategy
+  // 4. Detect market regime + session once per cycle
+  const regime  = detectRegime(priceData);
+  const session = getTradingSession();
+  log("Regime: " + regime.label + " (scoreAdj " + (regime.scoreAdj >= 0 ? "+" : "") + regime.scoreAdj + ") · Session: " + session.name);
+
+  // 5. Process each enabled strategy
   for (const strat of enabled) {
     const pair    = strat.pair;
     const posKey  = strat.name + "|" + pair;
@@ -280,8 +321,15 @@ async function runBotCycle(client) {
       }
 
     } else {
-      // ── Check buy signal ──────────────────────────────────────────────────
-      if (score >= (strat.buyScore || 70)) {
+      // ── Regime + session gate ─────────────────────────────────────────────
+      if (isStrategyGated(strat, regime, session)) {
+        log("GATED  " + strat.name + " (" + pair + ") — " + regime.label + " / " + session.name);
+        continue;
+      }
+
+      // ── Check buy signal (with regime score adjustment) ───────────────────
+      const adjustedScore = Math.max(0, Math.min(100, score + (regime.scoreAdj || 0)));
+      if (adjustedScore >= (strat.buyScore || 70)) {
         const qty    = (strat.amount || 100) / price;
 
         let txId = "sim";
@@ -300,8 +348,9 @@ async function runBotCycle(client) {
           }
         }
 
+        const scoreLabel = adjustedScore !== score ? score + "→" + adjustedScore : String(score);
         log((mode === "live" ? "LIVE" : "SIM") + " BUY  " + pair + " @ $" + price.toFixed(2) +
-            "  Score:" + score + "/" + strat.buyScore + "  $" + (strat.amount || 100) +
+            "  Score:" + scoreLabel + "/" + strat.buyScore + "  $" + (strat.amount || 100) +
             (mode === "live" ? "  txid:" + txId : ""));
 
         // Save position to DB
@@ -313,8 +362,8 @@ async function runBotCycle(client) {
           ON CONFLICT (pos_key) DO NOTHING
         `, [
           posKey, pair, price, Date.now(), qty,
-          strat.amount || 100, strat.takeProfit || 3,
-          strat.stopLoss || -2, mode, score, strat.name
+          strat.amount || 100, strat.takeProfit || strat.tp || 3,
+          strat.stopLoss || strat.sl || -2, mode, adjustedScore, strat.name
         ]);
       }
     }

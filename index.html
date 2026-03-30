@@ -932,9 +932,30 @@ button,input,select,textarea{font-family:inherit}
                 <button class="db-btn"     style="font-size:11px;padding:4px 10px"  onclick="refreshServerStatus()">↻ Refresh</button>
               </div>
             </div>
-            <div style="font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:10px">
-              The server bot runs on Vercel's servers — <strong style="color:var(--text2)">no browser needed</strong>. It reads your strategies and mode from the cloud and executes trades even when this tab is closed. Cron fires every minute (Pro plan) or use <strong style="color:var(--text2)">Run Now</strong> to trigger manually.
+
+            <!-- Server mode controls (independent of browser bot) -->
+            <div style="margin-bottom:14px;padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Server Bot Mode <span style="font-weight:400;text-transform:none">(runs on Vercel 24/7 — no browser needed)</span></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <button id="srv-btn-live" onclick="setServerMode('live')"
+                  style="padding:7px 18px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(34,197,94,0.5);background:rgba(34,197,94,0.1);color:var(--green)">
+                  🟢 Live Trade
+                </button>
+                <button id="srv-btn-sim" onclick="setServerMode('sim')"
+                  style="padding:7px 18px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(96,165,250,0.5);background:rgba(96,165,250,0.1);color:#60a5fa">
+                  🔵 Sim Trade
+                </button>
+                <button id="srv-btn-stop" onclick="setServerMode('idle')"
+                  style="padding:7px 18px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:var(--bg4);color:var(--text3)">
+                  ⬛ Stop
+                </button>
+                <span id="srv-keys-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--bg4);color:var(--text3);margin-left:4px">🔑 Checking keys…</span>
+              </div>
+              <div id="srv-live-warn" style="display:none;margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);font-size:11px;color:var(--amber)">
+                ⚠ <strong>No Kraken keys on server.</strong> Go to Settings → Kraken API and save your keys — they'll be stored securely in the server database so the cron bot can execute real orders when your browser is closed.
+              </div>
             </div>
+
             <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">
               <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">LAST SERVER RUN</div><div id="srv-last-run" style="font-size:12px;color:var(--text2)">—</div></div>
               <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">SERVER MODE</div><div id="srv-mode" style="font-size:12px;color:var(--text2)">—</div></div>
@@ -5404,6 +5425,46 @@ function syncBotModeToServer(mode) {
     .catch(function(e){ console.warn("[bot-config] mode sync failed:", e.message); });
 }
 
+// Set the SERVER bot mode independently of the browser bot
+async function setServerMode(mode) {
+  // If switching to live, warn if no keys on server
+  if (mode === "live") {
+    var warn = document.getElementById("srv-live-warn");
+    var keysBadge = document.getElementById("srv-keys-badge");
+    if (keysBadge && keysBadge.dataset.hasKeys === "false") {
+      if (warn) warn.style.display = "block";
+      showToast("⚠ Save Kraken keys in Settings first — needed for live server trades");
+      return;
+    }
+  }
+  // Push local strategies to server first so it has the latest
+  loadStrategies();
+  var strats = _strategies;
+  try {
+    await fetch("/api/bot-config", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({action:"save_strategies", strategies: strats})
+    });
+  } catch(e) { /* non-fatal */ }
+
+  try {
+    var r = await fetch("/api/bot-config", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({action:"set_mode", mode: mode})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      var modeLabel = mode === "live" ? "🟢 LIVE" : mode === "sim" ? "🔵 SIM" : "⬛ IDLE";
+      showToast("☁ Server bot set to " + modeLabel);
+      refreshServerStatus();
+    }
+  } catch(e) {
+    showToast("❌ Failed to update server mode: " + e.message);
+  }
+}
+
 // Push open position to server when bot buys
 function syncPositionToServer(posKey, pos) {
   fetch("/api/bot-config", {
@@ -5469,6 +5530,32 @@ async function refreshServerStatus() {
     if (srvMode)   srvMode.textContent  = d.mode ? d.mode.charAt(0).toUpperCase() + d.mode.slice(1) : "Idle";
     if (srvStrats) srvStrats.textContent = enabledCount + " enabled / " + (d.strategies || []).length + " total";
     if (srvPos)    srvPos.textContent    = posCount ? posCount + " open" : "None";
+
+    // Highlight the active server mode button
+    var btnLive = document.getElementById("srv-btn-live");
+    var btnSim  = document.getElementById("srv-btn-sim");
+    var btnStop = document.getElementById("srv-btn-stop");
+    if (btnLive) btnLive.style.boxShadow = d.mode === "live" ? "0 0 0 2px var(--green)" : "none";
+    if (btnSim)  btnSim.style.boxShadow  = d.mode === "sim"  ? "0 0 0 2px #60a5fa"     : "none";
+    if (btnStop) btnStop.style.boxShadow = (d.mode === "idle" || !d.mode) ? "0 0 0 2px var(--text3)" : "none";
+
+    // Keys on server badge
+    var keysBadge = document.getElementById("srv-keys-badge");
+    var liveWarn  = document.getElementById("srv-live-warn");
+    if (keysBadge) {
+      keysBadge.dataset.hasKeys = d.hasKeys ? "true" : "false";
+      if (d.hasKeys) {
+        keysBadge.textContent         = "🔑 Kraken keys ✓";
+        keysBadge.style.background    = "rgba(34,197,94,0.12)";
+        keysBadge.style.color         = "var(--green)";
+        if (liveWarn) liveWarn.style.display = "none";
+      } else {
+        keysBadge.textContent         = "🔑 No keys on server";
+        keysBadge.style.background    = "rgba(245,158,11,0.12)";
+        keysBadge.style.color         = "var(--amber)";
+        if (liveWarn && d.mode === "live") liveWarn.style.display = "block";
+      }
+    }
 
     // Show last log if any
     if (logEl && d.lastRunLog) {

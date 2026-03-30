@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
     // ── GET ─────────────────────────────────────────────────────────────────
     if (req.method === "GET") {
       const cfgQ = await client.query(
-        "SELECT mode, enabled, strategies, last_run, last_run_log, updated_at FROM bot_config WHERE id = 1"
+        "SELECT mode, enabled, strategies, last_run, last_run_log, updated_at, kr_key, kr_secret FROM bot_config WHERE id = 1"
       );
       const posQ = await client.query(
         "SELECT * FROM bot_positions ORDER BY entry_time DESC"
@@ -89,7 +89,8 @@ module.exports = async (req, res) => {
         positions,
         lastRun:    cfg.last_run    || 0,
         lastRunLog: cfg.last_run_log || "",
-        updatedAt:  cfg.updated_at
+        updatedAt:  cfg.updated_at,
+        hasKeys:    !!(cfg.kr_key && cfg.kr_secret)   // true/false — keys never sent to client
       });
       return;
     }
