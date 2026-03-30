@@ -1375,9 +1375,15 @@ function renderKrakenBalance() {
   var dc = document.getElementById("d-btc-price");
   if (dc && liveData["BTC/USD"]) dc.textContent = "$" + fP(liveData["BTC/USD"].price);
 
-  // Refresh portfolio allocation chart if Portfolio tab is open
+  // Refresh portfolio allocation chart if Portfolio tab is open (throttled — max once per 10s)
   var portTab = document.getElementById("dtab-portfolio");
-  if (portTab && portTab.classList.contains("active")) initPortfolioChart();
+  if (portTab && portTab.classList.contains("active")) {
+    var now = Date.now();
+    if (!renderKrakenBalance._lastChart || now - renderKrakenBalance._lastChart > 10000) {
+      renderKrakenBalance._lastChart = now;
+      initPortfolioChart();
+    }
+  }
 }
 
 function renderKrakenOrders() {
@@ -3017,7 +3023,7 @@ function initPortfolioChart() {
     },
     options: {
       responsive: false, maintainAspectRatio: false,
-      animation: { duration: 400 },
+      animation: { duration: 250 },
       cutout: "65%",
       plugins: {
         legend: { display: false },
