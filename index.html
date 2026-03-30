@@ -857,6 +857,37 @@ button,input,select,textarea{font-family:inherit}
             💡 In Sim mode? Enable <button onclick="toggleTurboSim()" style="background:none;border:none;color:var(--purple);font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline">⚡ Turbo Sim</button> to hit ~150 trades/day and train the ML model faster.
           </div>
 
+          <!-- ── Accuracy Signals Panel ─────────────────────────── -->
+          <div class="card" style="margin-bottom:14px" id="accuracy-panel">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div style="font-size:13px;font-weight:700">🎯 Accuracy Signals</div>
+              <button onclick="refreshAccuracySignals()" class="db-btn" style="font-size:10px;padding:3px 8px">Refresh</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px" id="accuracy-grid">
+              <!-- F&G Gate -->
+              <div style="padding:10px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">
+                <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase">F&amp;G Gate</div>
+                <div style="font-size:15px;font-weight:700" id="sig-fng-val">—</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:3px" id="sig-fng-label">Loading…</div>
+                <div style="font-size:10px;margin-top:4px;padding:2px 6px;border-radius:4px;display:inline-block" id="sig-fng-action">—</div>
+              </div>
+              <!-- SOL Whale -->
+              <div style="padding:10px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">
+                <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase">SOL Whale</div>
+                <div style="font-size:15px;font-weight:700" id="sig-whale-val">—</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:3px" id="sig-whale-label">Loading…</div>
+                <div style="font-size:10px;margin-top:4px;padding:2px 6px;border-radius:4px;display:inline-block" id="sig-whale-action">—</div>
+              </div>
+              <!-- Order Book -->
+              <div style="padding:10px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">
+                <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase">Order Book</div>
+                <div style="font-size:15px;font-weight:700" id="sig-ob-val">—</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:3px" id="sig-ob-label">Loading…</div>
+                <div style="font-size:10px;margin-top:4px;padding:2px 6px;border-radius:4px;display:inline-block" id="sig-ob-action">—</div>
+              </div>
+            </div>
+          </div>
+
           <div class="mc-grid">
             <div class="mc"><div class="mc-label">Net Flow (7d)</div><div class="mc-val" id="bot-pnl" style="font-size:20px">—</div><div class="mc-sub" id="bot-pnl-sub">Connect Kraken</div></div>
             <div class="mc"><div class="mc-label">Trades (7d)</div><div class="mc-val" id="bot-trades7d" style="font-size:20px">—</div><div class="mc-sub">From Kraken history</div></div>
@@ -2302,7 +2333,7 @@ function showDash(tab,el) {
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
     if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
     if(tab==="ml")         { renderMLAccuracy(); }
-    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); loadTurboState(); updateTurboUI(); }
+    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); loadTurboState(); updateTurboUI(); refreshAccuracySignals(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
       else { renderMomTopCards(); renderMomTable(); renderMomAI(); }
@@ -4087,6 +4118,158 @@ function stopAutoTrader() {
   updateTurboUI();
 }
 
+// ─── ACCURACY SIGNALS ─────────────────────────────────────────────────────────
+// Three real-time signals that gate / boost trade decisions:
+//  1. Fear & Greed Gate   — uses cached fngCache value
+//  2. SOL Whale (GeckoTerminal OHLCV) — recent volume surge on SOL/USDC Raydium
+//  3. Order Book Imbalance (Kraken public Depth) — bid vs ask stacking
+
+var _accSignals = { fng: null, whale: null, ob: null };  // cached result objects
+
+async function fetchFearGreedGate() {
+  // Re-use the already-cached fngCache value (fetched every 5 min by fetchFearGreed)
+  var val = fngCache;
+  if (val === null) {
+    // Fetch fresh if not yet available
+    try {
+      var r = await fetch("https://api.alternative.me/fng/?limit=1");
+      var d = await r.json();
+      if (d && d.data && d.data[0]) { val = parseInt(d.data[0].value, 10); fngCache = val; fngTs = Date.now(); }
+    } catch(e) { /* ignore */ }
+  }
+  if (val === null) return { val: null, label: "Unavailable", action: "Normal", color: "var(--text3)", scoreAdj: 0 };
+
+  var label, action, color, scoreAdj;
+  if (val <= 20) {
+    label = "Extreme Fear"; color = "var(--red)";
+    action = "Counter-trend only"; scoreAdj = -15;  // penalise momentum longs
+  } else if (val <= 45) {
+    label = "Fear"; color = "var(--amber)";
+    action = "Cautious"; scoreAdj = -5;
+  } else if (val <= 55) {
+    label = "Neutral"; color = "#eab308";
+    action = "Normal"; scoreAdj = 0;
+  } else if (val <= 80) {
+    label = "Greed"; color = "var(--purple)";
+    action = "Normal"; scoreAdj = +5;
+  } else {
+    label = "Extreme Greed"; color = "var(--green)";
+    action = "Reduce size 50%"; scoreAdj = -10;  // still trade, but flag caution
+  }
+  return { val: val, label: label, action: action, color: color, scoreAdj: scoreAdj };
+}
+
+async function fetchSolWhaleSignal() {
+  // GeckoTerminal: SOL/USDC on Raydium — 5-min OHLCV (last 6 bars)
+  // Pool address: 58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWaS5vCaD3mxH
+  try {
+    var url = "https://api.geckoterminal.com/api/v2/networks/solana/pools/58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWaS5vCaD3mxH/ohlcv/minute?aggregate=5&limit=6";
+    var r   = await fetch(url, { headers: { "Accept": "application/json" } });
+    var d   = await r.json();
+    var ohlcv = (d && d.data && d.data.attributes && d.data.attributes.ohlcv_list) || [];
+    if (ohlcv.length < 4) return { val: "—", label: "No data", action: "Normal", color: "var(--text3)", scoreAdj: 0 };
+
+    // Each item: [timestamp, open, high, low, close, volume]
+    var recentVol  = ohlcv.slice(0, 2).reduce(function(s, b){ return s + parseFloat(b[5]); }, 0) / 2;
+    var avgVol     = ohlcv.slice(2).reduce(function(s, b){ return s + parseFloat(b[5]); }, 0) / (ohlcv.length - 2);
+    var ratio      = avgVol > 0 ? recentVol / avgVol : 1;
+    var lastClose  = parseFloat(ohlcv[0][4]);
+    var prevClose  = parseFloat(ohlcv[1][4]);
+    var priceUp    = lastClose > prevClose;
+
+    var label, action, color, scoreAdj;
+    if (ratio >= 2.5 && priceUp) {
+      label = "🐋 Whale Buy"; color = "var(--green)"; action = "+15 score"; scoreAdj = +15;
+    } else if (ratio >= 1.8 && priceUp) {
+      label = "↑ Vol Surge"; color = "#34d399"; action = "+8 score"; scoreAdj = +8;
+    } else if (ratio >= 1.5 && !priceUp) {
+      label = "⚠ Sell Pressure"; color = "var(--red)"; action = "−8 score"; scoreAdj = -8;
+    } else {
+      label = "Normal"; color = "var(--text2)"; action = "No change"; scoreAdj = 0;
+    }
+    return { val: "×" + ratio.toFixed(1), label: label, action: action, color: color, scoreAdj: scoreAdj };
+  } catch(e) {
+    return { val: "—", label: "Error", action: "Normal", color: "var(--text3)", scoreAdj: 0 };
+  }
+}
+
+async function fetchOrderBookImbalance(pair) {
+  // Kraken public Depth API (no key needed), top-20 levels
+  pair = pair || "SOLUSD";
+  var krakenPair = pair.replace("/","").replace("USD","USD").toUpperCase();
+  // Map common pairs to Kraken format
+  var krakenMap = { "BTCUSD":"XBTUSD","BTCUSDT":"XBTUSDT","ETHUSD":"ETHUSD","SOLUSD":"SOLUSD","ARBUSD":"ARBUSD" };
+  var kp = krakenMap[krakenPair] || krakenPair;
+  try {
+    var r = await fetch("https://api.kraken.com/0/public/Depth?pair=" + kp + "&count=20");
+    var d = await r.json();
+    if (!d || d.error && d.error.length) return { val: "—", label: "No data", action: "Normal", color: "var(--text3)", scoreAdj: 0 };
+
+    var result = d.result;
+    var key    = Object.keys(result)[0];
+    var bids   = result[key].bids;
+    var asks   = result[key].asks;
+
+    // Sum top-20 bid and ask volumes
+    var bidVol = bids.reduce(function(s, b){ return s + parseFloat(b[1]); }, 0);
+    var askVol = asks.reduce(function(s, a){ return s + parseFloat(a[1]); }, 0);
+    var total  = bidVol + askVol;
+    var ratio  = total > 0 ? bidVol / total : 0.5;  // bid fraction
+
+    var label, action, color, scoreAdj;
+    if (ratio >= 0.70) {
+      label = "Strong Buy Wall"; color = "var(--green)"; action = "+12 score"; scoreAdj = +12;
+    } else if (ratio >= 0.60) {
+      label = "Bid Heavy";       color = "#34d399";       action = "+6 score";  scoreAdj = +6;
+    } else if (ratio <= 0.30) {
+      label = "Ask Heavy";       color = "var(--red)";    action = "−12 score"; scoreAdj = -12;
+    } else if (ratio <= 0.40) {
+      label = "Sell Pressure";   color = "var(--amber)";  action = "−6 score";  scoreAdj = -6;
+    } else {
+      label = "Balanced";        color = "var(--text2)";  action = "No change"; scoreAdj = 0;
+    }
+    return { val: Math.round(ratio * 100) + "%", label: label, action: action, color: color, scoreAdj: scoreAdj, ratio: ratio };
+  } catch(e) {
+    return { val: "—", label: "Error", action: "Normal", color: "var(--text3)", scoreAdj: 0 };
+  }
+}
+
+async function refreshAccuracySignals(pair) {
+  // Update UI to "loading" state
+  ["fng","whale","ob"].forEach(function(k){
+    var el = document.getElementById("sig-"+k+"-val");
+    if (el) el.textContent = "…";
+  });
+
+  var fngRes   = await fetchFearGreedGate();
+  var whalRes  = await fetchSolWhaleSignal();
+  var obRes    = await fetchOrderBookImbalance(pair || "SOLUSD");
+
+  _accSignals.fng   = fngRes;
+  _accSignals.whale = whalRes;
+  _accSignals.ob    = obRes;
+
+  function setCard(prefix, res) {
+    var valEl    = document.getElementById("sig-"+prefix+"-val");
+    var labelEl  = document.getElementById("sig-"+prefix+"-label");
+    var actionEl = document.getElementById("sig-"+prefix+"-action");
+    if (!valEl) return;
+    valEl.textContent    = res.val !== null && res.val !== undefined ? res.val : "—";
+    valEl.style.color    = res.color || "var(--text)";
+    if (labelEl)  labelEl.textContent  = res.label  || "—";
+    if (actionEl) {
+      actionEl.textContent  = res.action || "—";
+      var adjV = res.scoreAdj || 0;
+      actionEl.style.background = adjV > 0 ? "rgba(34,197,94,0.15)" : adjV < 0 ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.05)";
+      actionEl.style.color      = adjV > 0 ? "var(--green)" : adjV < 0 ? "var(--red)" : "var(--text3)";
+    }
+  }
+
+  setCard("fng",   fngRes);
+  setCard("whale", whalRes);
+  setCard("ob",    obRes);
+}
+
 // Force-open a sim trade immediately on every enabled strategy that has no open position
 async function forceSimTrades() {
   if (botMode !== "sim") { showToast("⚠ Force trade only available in Sim mode"); return; }
@@ -4178,12 +4361,39 @@ async function runAutoTraderCycle() {
       effectiveTP  = 2.0;
       effectiveSL  = -1.5;
     }
+
+    // ── ACCURACY SIGNAL ADJUSTMENTS ──
+    // Apply cached signal score adjustments (F&G gate, SOL whale, order book)
+    var adjustedScore = score;
+    if (!(_turboSim && botMode === "sim")) {
+      // F&G: Extreme Fear — only counter-trend strategies get a pass; penalise momentum longs
+      if (_accSignals.fng && _accSignals.fng.scoreAdj) {
+        var isMomentum = s.mode === "buy" || (s.name && s.name.toLowerCase().indexOf("momentum") !== -1);
+        if (_accSignals.fng.val <= 20 && isMomentum) {
+          adjustedScore += _accSignals.fng.scoreAdj;  // -15
+        } else if (_accSignals.fng.val > 20) {
+          adjustedScore += _accSignals.fng.scoreAdj;
+        }
+      }
+      // SOL Whale & Order Book: direct score adjustments
+      if (_accSignals.whale && _accSignals.whale.scoreAdj) adjustedScore += _accSignals.whale.scoreAdj;
+      if (_accSignals.ob    && _accSignals.ob.scoreAdj)    adjustedScore += _accSignals.ob.scoreAdj;
+      // Extreme Greed: reduce effective position size by 50%
+      if (_accSignals.fng && _accSignals.fng.val > 80) {
+        effectiveTP = Math.max(effectiveTP * 0.5, 1.0);
+      }
+      adjustedScore = Math.max(0, Math.min(100, adjustedScore));
+    } else {
+      adjustedScore = score;
+    }
+
     // Normal sim/live: respect score threshold. Turbo sim: always fire (score gate = 0)
-    if (s.mode !== "sell" && score >= effectiveBuyScore) {
+    if (s.mode !== "sell" && adjustedScore >= effectiveBuyScore) {
       var turboStrat = _turboSim && botMode === "sim"
-        ? Object.assign({}, s, { tp: effectiveTP, sl: effectiveSL, _entryScore: score })
-        : Object.assign({}, s, { _entryScore: score });
-      await autoExecute(turboStrat, "buy", price, "📈 Buy signal (" + score + "/100)" + (_turboSim && botMode==="sim" ? " ⚡ Turbo" : ""), null);
+        ? Object.assign({}, s, { tp: effectiveTP, sl: effectiveSL, _entryScore: adjustedScore })
+        : Object.assign({}, s, { _entryScore: adjustedScore });
+      var scoreLabel = adjustedScore !== score ? (score + "→" + adjustedScore + "/100") : (score + "/100");
+      await autoExecute(turboStrat, "buy", price, "📈 Buy signal (" + scoreLabel + ")" + (_turboSim && botMode==="sim" ? " ⚡ Turbo" : ""), null);
       if (_turboSim && botMode === "sim") bumpTurboCount();
     }
   }
