@@ -839,9 +839,24 @@ button,input,select,textarea{font-family:inherit}
               <button class="db-btn" id="btnLive"  onclick="setMode('live')" style="font-size:11px;padding:4px 10px">Live</button>
               <button class="db-btn" id="btnSim"   onclick="setMode('sim')"  style="font-size:11px;padding:4px 10px">Sim</button>
               <button class="db-btn" id="btnStop"  onclick="setMode('idle')" style="font-size:11px;padding:4px 10px">Stop</button>
-              <button id="btn-force-trade" onclick="forceSimTrades()" style="display:none;font-size:11px;padding:4px 12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:6px;cursor:pointer;font-weight:600">⚡ Force Trade</button>
-              <span id="regime-badge" style="font-size:10px;padding:3px 9px;border-radius:20px;background:var(--bg3);color:var(--text3);font-weight:600">Detecting…</span>
+              <button id="btn-force-trade" onclick="forceSimTrades()" style="display:none;font-size:11px;padding:4px 12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:6px;cursor:pointer;font-weight:600">Force Trade</button>
+              <span id="regime-badge" style="font-size:10px;padding:3px 9px;border-radius:20px;background:var(--bg3);color:var(--text3);font-weight:600">Detecting...</span>
             </div>
+          </div>
+          
+          <!-- Token Search Bar -->
+          <div class="card" style="margin-bottom:14px;position:relative">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:220px;position:relative">
+                <input id="sniper-search-input" type="text" placeholder="Search tokens to snipe (e.g. PEPE, DOGE, LINK...)" oninput="sniperSearchDebounce()" style="width:100%;box-sizing:border-box;padding:10px 14px 10px 38px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px;outline:none"/>
+                <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:0.5" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:var(--text3)">Active token:</span>
+                <span id="sniper-active-token" style="font-size:13px;font-weight:600;color:var(--purple);padding:4px 10px;background:rgba(139,92,246,0.1);border-radius:6px">SOL/USD</span>
+              </div>
+            </div>
+            <div id="sniper-search-results" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;max-height:280px;overflow-y:auto;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.3)"></div>
           </div>
           <!-- Turbo Sim banner -->
           <div id="turbo-sim-bar" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -2576,7 +2591,88 @@ function closeWatchlistSearch() {
 document.addEventListener("click", function(e) {
   var container = document.getElementById("dtab-watchlist");
   if (container && !container.contains(e.target)) closeWatchlistSearch();
+  // Also close sniper search
+  var sniperContainer = document.getElementById("dtab-sniper");
+  if (sniperContainer && !sniperContainer.contains(e.target)) closeSniperSearch();
 });
+
+// ─── SNIPER TOKEN SEARCH ──────────────────────────────────────────────────────
+var _sniperActiveToken = "SOL/USD";  // default token
+var _sniperSearchTimer = null;
+
+function sniperSearchDebounce() {
+  clearTimeout(_sniperSearchTimer);
+  var q = (document.getElementById("sniper-search-input") || {}).value || "";
+  if (q.length < 2) { closeSniperSearch(); return; }
+  _sniperSearchTimer = setTimeout(searchSniperTokens, 400);
+}
+
+function searchSniperTokens() {
+  var input = document.getElementById("sniper-search-input"); if (!input) return;
+  var q = input.value.trim(); if (q.length < 1) return;
+  var res = document.getElementById("sniper-search-results"); if (!res) return;
+  res.style.display = "block";
+  res.innerHTML = "<div style='padding:14px;font-size:12px;color:var(--text3)'>Searching...</div>";
+  
+  fetch("https://api.coingecko.com/api/v3/search?query=" + encodeURIComponent(q))
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var coins = (data.coins || []).slice(0, 10);
+      if (!coins.length) { 
+        res.innerHTML = "<div style='padding:14px;font-size:13px;color:var(--text3)'>No results for \"" + escHtml(q) + "\"</div>"; 
+        return; 
+      }
+      var html = "";
+      coins.forEach(function(c) {
+        var sym = c.symbol.toUpperCase() + "/USD";
+        var isActive = sym === _sniperActiveToken;
+        html += "<div onclick='selectSniperToken(\"" + sym + "\",\"" + c.id + "\",\"" + c.name.replace(/"/g,"") + "\")' style='display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background 0.15s' onmouseover='this.style.background=\"var(--bg3)\"' onmouseout='this.style.background=\"transparent\"'>";
+        if (c.thumb) html += "<img src='" + c.thumb + "' style='width:28px;height:28px;border-radius:50%;flex-shrink:0' onerror='this.style.display=\"none\"'/>";
+        html += "<div style='flex:1;min-width:0'>";
+        html += "  <div style='font-size:13px;font-weight:600'>" + escHtml(c.name) + " <span style='font-size:11px;color:var(--text3);font-weight:400'>" + c.symbol.toUpperCase() + "</span></div>";
+        if (c.market_cap_rank) html += "  <div style='font-size:11px;color:var(--text3)'>Rank #" + c.market_cap_rank + "</div>";
+        html += "</div>";
+        if (isActive) {
+          html += "<span style='font-size:11px;color:var(--green);font-weight:600;flex-shrink:0'>Active</span>";
+        } else {
+          html += "<span style='font-size:11px;color:var(--purple);font-weight:600;flex-shrink:0'>Select</span>";
+        }
+        html += "</div>";
+      });
+      res.innerHTML = html;
+    })
+    .catch(function() { res.innerHTML = "<div style='padding:14px;font-size:13px;color:var(--red)'>Search failed — check connection</div>"; });
+}
+
+function selectSniperToken(sym, cgId, name) {
+  _sniperActiveToken = sym;
+  var badge = document.getElementById("sniper-active-token");
+  if (badge) badge.textContent = sym;
+  closeSniperSearch();
+  showToast("Sniper target: " + name + " (" + sym + ")");
+  
+  // Add to watchlist if not already there so we get price data
+  loadCustomWatchlist();
+  var defaultSyms = WL_DEFAULT;
+  var alreadyWatching = defaultSyms.indexOf(sym) !== -1 || _customWatchlist.find(function(x){ return x.sym === sym; });
+  if (!alreadyWatching) {
+    addToWatchlist(cgId, sym, name);
+  }
+  
+  // Refresh prices to include the new token
+  fetchPrices(true);
+}
+
+function closeSniperSearch() {
+  var res = document.getElementById("sniper-search-results");
+  var inp = document.getElementById("sniper-search-input");
+  if (res) res.style.display = "none";
+  if (inp) inp.value = "";
+}
+
+function getSniperActiveToken() {
+  return _sniperActiveToken;
+}
 
 // ─── PORTFOLIO POSITIONS + QUICK TRADE ───────────────────────────────────────
 function renderPortfolioPositions() {
@@ -4198,7 +4294,7 @@ function stopAutoTrader() {
   updateTurboUI();
 }
 
-// ─── REGIME DETECTION + SESSION GATING ────────────────────────────────────────
+// ─── REGIME DETECTION + SESSION GATING ───────────────────���────────────────────
 // Classifies the current market state using momentum scores across all tracked
 // pairs, then gates strategies so only the right type fires in the right regime.
 //
