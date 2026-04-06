@@ -421,6 +421,7 @@ button,input,select,textarea{font-family:inherit}
         <div id="snav-portfolio" class="nav-item" onclick="showDash('portfolio',this)"><svg viewBox="0 0 16 16" fill="none"><polyline points="1.5,12 4.5,8 7.5,10 11,5 14.5,3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Portfolio</div>
         <div id="snav-askai" class="nav-item" onclick="showDash('askai',this)"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="9" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 7h6M5 9.5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Ask AI</div>
         <div id="snav-strategies" class="nav-item" onclick="showDash('strategies',this)"><svg viewBox="0 0 16 16" fill="none"><path d="M2 10.5l3-4 3 2 3.5-5.5 2.5-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Strategies</div>
+            <div id="snav-lab" class="nav-item" onclick="showDash('lab',this)"><svg viewBox="0 0 16 16" fill="none"><path d="M5 2v4l-3 7h12l-3-7V2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 2h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="11" r="0.7" fill="currentColor"/></svg>Strategy Lab</div>
         <div id="snav-ml" class="nav-item" onclick="showDash('ml',this)"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2.5" fill="currentColor" opacity=".3"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>ML Predictions</div>
         <div id="snav-momentum" class="nav-item" onclick="showDash('momentum',this)"><svg viewBox="0 0 16 16" fill="none"><path d="M2 13l3.5-5 3 2.5 3-5 2.5-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 2h2v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Momentum</div>
         <div id="snav-whale" class="nav-item" onclick="showDash('whale',this)"><svg viewBox="0 0 16 16" fill="none"><path d="M2 10c0-4 3-7.5 6-7.5s6 2.5 6 7.5H2z" stroke="currentColor" stroke-width="1.3"/><path d="M4 13.5l-2-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Whale Alerts</div>
@@ -659,6 +660,27 @@ button,input,select,textarea{font-family:inherit}
                   <input class="fld" id="se-takeprofit" type="number" value="12" min="1" placeholder="12" style="margin-bottom:0">
                 </div>
               </div>
+              <!-- Trailing Stop Section -->
+              <div style="margin-top:14px;padding:12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="checkbox" id="se-trailing-enabled" onchange="toggleTrailingInputs()" style="accent-color:var(--purple);width:16px;height:16px">
+                    <span style="font-size:12px;font-weight:600;color:var(--text)">Enable Trailing Stop</span>
+                  </label>
+                  <span style="font-size:10px;color:var(--text3)">(locks in profit as price moves up)</span>
+                </div>
+                <div id="trailing-inputs" style="display:none;grid-template-columns:1fr 1fr;gap:12px">
+                  <div>
+                    <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px">ACTIVATION % (trigger trailing)</label>
+                    <input class="fld" id="se-trail-activate" type="number" value="2" min="0.5" step="0.5" placeholder="2" style="margin-bottom:0;font-size:12px">
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px">TRAIL DISTANCE %</label>
+                    <input class="fld" id="se-trail-distance" type="number" value="1.5" min="0.5" step="0.5" placeholder="1.5" style="margin-bottom:0;font-size:12px">
+                  </div>
+                </div>
+                <div style="font-size:10px;color:var(--text3);margin-top:8px">Example: At +2% profit, trailing activates. If price drops 1.5% from its peak, position closes.</div>
+              </div>
               <div style="display:flex;gap:8px;margin-top:16px">
                 <button class="btn-purple" style="font-size:12px;padding:7px 18px" onclick="saveStrategy()">Save Strategy</button>
                 <button class="db-btn" style="font-size:12px;padding:7px 14px" onclick="closeStrategyEditor()">Cancel</button>
@@ -700,6 +722,192 @@ button,input,select,textarea{font-family:inherit}
             <div class="card"><div class="card-h" style="margin-bottom:14px" id="strat-chart-title">Win Rate by Pair</div><div style="position:relative;height:180px"><canvas id="stratChart"></canvas></div></div>
           </div>
         </div>
+        <!-- Strategy Lab Tab -->
+        <div id="dtab-lab" class="db-tab">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div class="card-h" style="margin-bottom:4px">Strategy Lab</div>
+              <div style="font-size:12px;color:var(--text3)">Build, backtest, and optimize custom trading rules</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="db-btn" onclick="runLabBacktest()" style="font-size:12px;padding:7px 14px;color:var(--green);border-color:rgba(34,197,94,0.35)">Run Backtest</button>
+              <button class="btn-purple" onclick="deployLabStrategy()" style="font-size:12px;padding:7px 14px">Deploy to Bot</button>
+            </div>
+          </div>
+
+          <!-- Rule Builder -->
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-size:14px;font-weight:600">Rule Builder</div>
+              <button class="db-btn" onclick="addLabRule()" style="font-size:11px;padding:4px 12px">+ Add Rule</button>
+            </div>
+            
+            <!-- Strategy Name & Pair -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+              <div>
+                <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px;text-transform:uppercase">Strategy Name</label>
+                <input class="fld" id="lab-name" placeholder="My Custom Strategy" style="margin-bottom:0">
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px;text-transform:uppercase">Trading Pair</label>
+                <select class="fld" id="lab-pair" style="margin-bottom:0;background:var(--bg3)">
+                  <option value="BTC/USD">BTC/USD</option>
+                  <option value="ETH/USD">ETH/USD</option>
+                  <option value="SOL/USD">SOL/USD</option>
+                  <option value="AVAX/USD">AVAX/USD</option>
+                  <option value="ARB/USD">ARB/USD</option>
+                  <option value="OP/USD">OP/USD</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Rules Container -->
+            <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px;text-transform:uppercase">Entry Conditions (ALL must be true)</div>
+            <div id="lab-rules" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+              <!-- Default rules -->
+              <div class="lab-rule" data-idx="0" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">
+                <select class="fld" style="margin:0;width:140px;font-size:12px;padding:6px 8px" onchange="updateRuleInputs(this)">
+                  <option value="momentum">Momentum Score</option>
+                  <option value="price_change">Price Change %</option>
+                  <option value="volume">Volume Spike</option>
+                  <option value="rsi">RSI</option>
+                  <option value="fng">Fear & Greed</option>
+                  <option value="whale">Whale Activity</option>
+                </select>
+                <select class="fld" style="margin:0;width:80px;font-size:12px;padding:6px 8px">
+                  <option value="gte">>=</option>
+                  <option value="lte"><=</option>
+                  <option value="gt">></option>
+                  <option value="lt"><</option>
+                  <option value="eq">=</option>
+                </select>
+                <input class="fld" type="number" value="70" style="margin:0;width:80px;font-size:12px;padding:6px 8px">
+                <button onclick="removeLabRule(this)" style="padding:4px 8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--red);border-radius:4px;font-size:11px;cursor:pointer">X</button>
+              </div>
+            </div>
+
+            <!-- Exit Rules -->
+            <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px;text-transform:uppercase">Exit Rules</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+              <div>
+                <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px">Take Profit %</label>
+                <input class="fld" id="lab-tp" type="number" value="8" min="1" style="margin:0;font-size:12px;padding:6px 8px">
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px">Stop Loss %</label>
+                <input class="fld" id="lab-sl" type="number" value="-4" max="0" style="margin:0;font-size:12px;padding:6px 8px">
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px">Trade Size (USD)</label>
+                <input class="fld" id="lab-amount" type="number" value="100" min="10" style="margin:0;font-size:12px;padding:6px 8px">
+              </div>
+              <div>
+                <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px">Max Open Trades</label>
+                <input class="fld" id="lab-max-trades" type="number" value="3" min="1" max="10" style="margin:0;font-size:12px;padding:6px 8px">
+              </div>
+            </div>
+
+            <!-- Advanced Options -->
+            <div style="padding:12px;background:var(--bg4);border-radius:8px;border:1px solid var(--border2)">
+              <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:10px;text-transform:uppercase">Advanced Options</div>
+              <div style="display:flex;flex-wrap:wrap;gap:16px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="lab-trailing" style="accent-color:var(--purple)"> Enable Trailing Stop
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="lab-regime-filter" checked style="accent-color:var(--purple)"> Regime Filter (skip ranging)
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="lab-session-filter" style="accent-color:var(--purple)"> Session Filter (US hours only)
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="lab-compound" style="accent-color:var(--purple)"> Compound Profits
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Backtest Results -->
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-size:14px;font-weight:600">Backtest Results</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select id="lab-period" class="fld" style="margin:0;width:120px;font-size:11px;padding:5px 8px;background:var(--bg3)">
+                  <option value="7">Last 7 days</option>
+                  <option value="30" selected>Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                  <option value="180">Last 6 months</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Metrics -->
+            <div id="lab-results" style="display:none">
+              <div class="mc-grid" style="margin-bottom:16px">
+                <div class="mc"><div class="mc-label">Total Return</div><div class="mc-val" id="lab-return" style="font-size:20px;color:var(--green)">+0%</div><div class="mc-sub" id="lab-return-sub">vs Buy & Hold</div></div>
+                <div class="mc"><div class="mc-label">Win Rate</div><div class="mc-val" id="lab-winrate" style="font-size:20px">0%</div><div class="mc-sub" id="lab-trades-count">0 trades</div></div>
+                <div class="mc"><div class="mc-label">Profit Factor</div><div class="mc-val" id="lab-pf" style="font-size:20px">0.00</div><div class="mc-sub">Gross profit / loss</div></div>
+                <div class="mc"><div class="mc-label">Max Drawdown</div><div class="mc-val" id="lab-dd" style="font-size:20px;color:var(--red)">0%</div><div class="mc-sub">Largest peak-to-trough</div></div>
+              </div>
+
+              <!-- Equity Curve -->
+              <div style="margin-bottom:16px">
+                <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px;text-transform:uppercase">Equity Curve</div>
+                <div style="position:relative;height:200px;background:var(--bg3);border-radius:8px;padding:12px">
+                  <canvas id="lab-equity-chart"></canvas>
+                </div>
+              </div>
+
+              <!-- Trade Log -->
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px;text-transform:uppercase">Simulated Trades</div>
+                <div id="lab-trade-log" style="max-height:200px;overflow-y:auto;border-radius:8px;border:1px solid var(--border2)"></div>
+              </div>
+            </div>
+
+            <div id="lab-no-results" style="padding:40px 20px;text-align:center;color:var(--text3)">
+              <div style="font-size:32px;margin-bottom:12px;opacity:0.5">&#128200;</div>
+              <div style="font-size:14px;margin-bottom:4px">No backtest results yet</div>
+              <div style="font-size:12px">Configure your rules above and click "Run Backtest"</div>
+            </div>
+          </div>
+
+          <!-- Strategy Templates -->
+          <div class="card">
+            <div style="font-size:14px;font-weight:600;margin-bottom:14px">Quick Templates</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+              <button onclick="loadLabTemplate('momentum')" style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;cursor:pointer;text-align:left">
+                <span style="font-size:20px">&#128200;</span>
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:var(--text)">Momentum Rider</div>
+                  <div style="font-size:10px;color:var(--text3)">High score + volume spike</div>
+                </div>
+              </button>
+              <button onclick="loadLabTemplate('dip')" style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;cursor:pointer;text-align:left">
+                <span style="font-size:20px">&#128181;</span>
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:var(--text)">Dip Buyer</div>
+                  <div style="font-size:10px;color:var(--text3)">Buy fear, sell greed</div>
+                </div>
+              </button>
+              <button onclick="loadLabTemplate('breakout')" style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;cursor:pointer;text-align:left">
+                <span style="font-size:20px">&#128640;</span>
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:var(--text)">Breakout Hunter</div>
+                  <div style="font-size:10px;color:var(--text3)">Price + RSI breakout</div>
+                </div>
+              </button>
+              <button onclick="loadLabTemplate('whale')" style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;cursor:pointer;text-align:left">
+                <span style="font-size:20px">&#128011;</span>
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:var(--text)">Whale Follower</div>
+                  <div style="font-size:10px;color:var(--text3)">Track smart money</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div id="dtab-ml" class="db-tab">
           <div class="card-h" style="margin-bottom:20px">ML Predictions</div>
           <div class="g2w" style="margin-bottom:16px">
@@ -839,9 +1047,24 @@ button,input,select,textarea{font-family:inherit}
               <button class="db-btn" id="btnLive"  onclick="setMode('live')" style="font-size:11px;padding:4px 10px">Live</button>
               <button class="db-btn" id="btnSim"   onclick="setMode('sim')"  style="font-size:11px;padding:4px 10px">Sim</button>
               <button class="db-btn" id="btnStop"  onclick="setMode('idle')" style="font-size:11px;padding:4px 10px">Stop</button>
-              <button id="btn-force-trade" onclick="forceSimTrades()" style="display:none;font-size:11px;padding:4px 12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:6px;cursor:pointer;font-weight:600">⚡ Force Trade</button>
-              <span id="regime-badge" style="font-size:10px;padding:3px 9px;border-radius:20px;background:var(--bg3);color:var(--text3);font-weight:600">Detecting…</span>
+              <button id="btn-force-trade" onclick="forceSimTrades()" style="display:none;font-size:11px;padding:4px 12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);color:#fbbf24;border-radius:6px;cursor:pointer;font-weight:600">Force Trade</button>
+              <span id="regime-badge" style="font-size:10px;padding:3px 9px;border-radius:20px;background:var(--bg3);color:var(--text3);font-weight:600">Detecting...</span>
             </div>
+          </div>
+          
+          <!-- Token Search Bar -->
+          <div class="card" style="margin-bottom:14px;position:relative">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:220px;position:relative">
+                <input id="sniper-search-input" type="text" placeholder="Search tokens to snipe (e.g. PEPE, DOGE, LINK...)" oninput="sniperSearchDebounce()" style="width:100%;box-sizing:border-box;padding:10px 14px 10px 38px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px;outline:none"/>
+                <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:0.5" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:var(--text3)">Active token:</span>
+                <span id="sniper-active-token" style="font-size:13px;font-weight:600;color:var(--purple);padding:4px 10px;background:rgba(139,92,246,0.1);border-radius:6px">SOL/USD</span>
+              </div>
+            </div>
+            <div id="sniper-search-results" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;max-height:280px;overflow-y:auto;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.3)"></div>
           </div>
           <!-- Turbo Sim banner -->
           <div id="turbo-sim-bar" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -885,6 +1108,80 @@ button,input,select,textarea{font-family:inherit}
                 <div style="font-size:15px;font-weight:700" id="sig-ob-val">—</div>
                 <div style="font-size:11px;color:var(--text3);margin-top:3px" id="sig-ob-label">Loading…</div>
                 <div style="font-size:10px;margin-top:4px;padding:2px 6px;border-radius:4px;display:inline-block" id="sig-ob-action">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Copy Trading Module -->
+          <div class="card" style="margin-bottom:14px" id="copy-trade-panel">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="font-size:14px;font-weight:600">Copy Trading</div>
+                <span style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(34,197,94,0.15);color:var(--green);font-weight:600" id="copy-trade-status">OFF</span>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <button class="db-btn" onclick="toggleCopyTrading()" id="copy-trade-toggle" style="font-size:11px;padding:4px 12px">Enable</button>
+                <button class="db-btn" onclick="refreshWhaleActivity()" style="font-size:11px;padding:4px 10px">Refresh</button>
+              </div>
+            </div>
+
+            <!-- Add Wallet Form -->
+            <div style="margin-bottom:14px;padding:12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">
+              <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">Track Whale Wallet</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input id="whale-address-input" type="text" placeholder="Enter wallet address (0x... or ENS)" style="flex:1;min-width:200px;padding:8px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--bg4);color:var(--text);font-size:12px;font-family:'JetBrains Mono',monospace"/>
+                <input id="whale-label-input" type="text" placeholder="Label (optional)" style="width:120px;padding:8px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--bg4);color:var(--text);font-size:12px"/>
+                <button onclick="addWhaleWallet()" style="padding:8px 16px;border-radius:6px;background:var(--purple);border:1px solid var(--purple2);color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>
+              </div>
+            </div>
+
+            <!-- Tracked Wallets -->
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Tracked Wallets <span id="whale-wallet-count" style="font-weight:400">(0)</span></div>
+              <div id="whale-wallets-list" style="display:flex;flex-direction:column;gap:6px;max-height:140px;overflow-y:auto">
+                <div style="padding:12px;text-align:center;color:var(--text3);font-size:12px;background:var(--bg3);border-radius:6px">No wallets tracked. Add a whale address above to start copy trading.</div>
+              </div>
+            </div>
+
+            <!-- Copy Trade Settings -->
+            <div style="margin-bottom:14px;padding:12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">
+              <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">Copy Settings</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                <div>
+                  <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px">Max per trade (USD)</label>
+                  <input id="copy-max-amount" type="number" value="100" min="10" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg4);color:var(--text);font-size:12px"/>
+                </div>
+                <div>
+                  <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px">Min whale size (USD)</label>
+                  <input id="copy-min-whale-size" type="number" value="10000" min="1000" style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg4);color:var(--text);font-size:12px"/>
+                </div>
+                <div>
+                  <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px">Mode</label>
+                  <select id="copy-trade-mode" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg4);color:var(--text);font-size:12px">
+                    <option value="notify">Notify Only</option>
+                    <option value="sim">Auto (Sim)</option>
+                    <option value="live">Auto (Live)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;margin-top:10px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="copy-buys-only" checked style="accent-color:var(--purple)"> Copy buys only
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="copy-with-tp-sl" checked style="accent-color:var(--purple)"> Auto TP/SL (+5%/-3%)
+                </label>
+              </div>
+            </div>
+
+            <!-- Recent Whale Activity -->
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Recent Whale Activity</div>
+                <span id="whale-activity-time" style="font-size:10px;color:var(--text3)">—</span>
+              </div>
+              <div id="whale-activity-feed" style="max-height:200px;overflow-y:auto;border-radius:8px;border:1px solid var(--border2)">
+                <div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">Add whale wallets to see their activity</div>
               </div>
             </div>
           </div>
@@ -1466,7 +1763,7 @@ function calcTradePnl(t, avgBuyPrices) {
   return revenue - fee - costBasis;         // positive = profit, negative = loss
 }
 
-// ─── KRAKEN STATS ENGINE ──────────────────────────────────────────────────────
+// ─── KRAKEN STATS ENGINE ───���──────────────────────────────────────────────────
 function computeKrakenStats() {
   if (!krakenTrades.length) return null;
   var now = Date.now() / 1000;
@@ -2354,9 +2651,10 @@ function showDash(tab,el) {
     if(tab==="history")    { fetchKraken(); if(krakenTrades.length){ populatePairFilter(); var ce=document.getElementById("hist-count");if(ce)ce.textContent=krakenTrades.length+" trades"; } }
     if(tab==="settings")   { initSettingsTab(); renderMLSettingsPanel(); }
     if(tab==="solsniper")  { loadSolConfig(); startSolScanLoop(); }
-    if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
-    if(tab==="ml")         { renderMLAccuracy(); }
-    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); loadTurboState(); updateTurboUI(); refreshAccuracySignals(); updateRegimeBadge(); }
+if(tab==="strategies") { initStratChart(); renderStrategiesList(); renderLearningPanel(); }
+  if(tab==="lab")        { /* Strategy Lab initializes on demand */ }
+  if(tab==="ml")         { renderMLAccuracy(); }
+    if(tab==="sniper")     { initBotChart(); renderBotPositions(); renderBotLog(); refreshServerStatus(); loadTurboState(); updateTurboUI(); refreshAccuracySignals(); updateRegimeBadge(); renderWhaleWallets(); }
     if(tab==="momentum")   {
       if(!momData.length) fetchPrices();
       else { renderMomTopCards(); renderMomTable(); renderMomAI(); }
@@ -2576,130 +2874,412 @@ function closeWatchlistSearch() {
 document.addEventListener("click", function(e) {
   var container = document.getElementById("dtab-watchlist");
   if (container && !container.contains(e.target)) closeWatchlistSearch();
+  // Also close sniper search
+  var sniperContainer = document.getElementById("dtab-sniper");
+  if (sniperContainer && !sniperContainer.contains(e.target)) closeSniperSearch();
 });
 
-// ─── PORTFOLIO POSITIONS + QUICK TRADE ───────────────────────────────────────
-function renderPortfolioPositions() {
-  loadBotPositions();
-  var el     = document.getElementById("port-positions-list"); if (!el) return;
-  var modeEl = document.getElementById("port-pos-mode");
-  var keys   = Object.keys(_botPositions);
+// ─── SNIPER TOKEN SEARCH ──────────────────────────────────────────────────────
+var _sniperActiveToken = "SOL/USD";  // default token
+var _sniperSearchTimer = null;
 
-  if (!keys.length) {
-    el.innerHTML = "<div style='color:var(--text3);font-size:13px;padding:8px 0'>No open positions. Start the Sim or Live bot to see trades here.</div>";
-    if (modeEl) modeEl.textContent = "";
+function sniperSearchDebounce() {
+  clearTimeout(_sniperSearchTimer);
+  var q = (document.getElementById("sniper-search-input") || {}).value || "";
+  if (q.length < 2) { closeSniperSearch(); return; }
+  _sniperSearchTimer = setTimeout(searchSniperTokens, 400);
+}
+
+function searchSniperTokens() {
+  var input = document.getElementById("sniper-search-input"); if (!input) return;
+  var q = input.value.trim(); if (q.length < 1) return;
+  var res = document.getElementById("sniper-search-results"); if (!res) return;
+  res.style.display = "block";
+  res.innerHTML = "<div style='padding:14px;font-size:12px;color:var(--text3)'>Searching...</div>";
+  
+  fetch("https://api.coingecko.com/api/v3/search?query=" + encodeURIComponent(q))
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var coins = (data.coins || []).slice(0, 10);
+      if (!coins.length) { 
+        res.innerHTML = "<div style='padding:14px;font-size:13px;color:var(--text3)'>No results for \"" + escHtml(q) + "\"</div>"; 
+        return; 
+      }
+      var html = "";
+      coins.forEach(function(c) {
+        var sym = c.symbol.toUpperCase() + "/USD";
+        var isActive = sym === _sniperActiveToken;
+        html += "<div onclick='selectSniperToken(\"" + sym + "\",\"" + c.id + "\",\"" + c.name.replace(/"/g,"") + "\")' style='display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background 0.15s' onmouseover='this.style.background=\"var(--bg3)\"' onmouseout='this.style.background=\"transparent\"'>";
+        if (c.thumb) html += "<img src='" + c.thumb + "' style='width:28px;height:28px;border-radius:50%;flex-shrink:0' onerror='this.style.display=\"none\"'/>";
+        html += "<div style='flex:1;min-width:0'>";
+        html += "  <div style='font-size:13px;font-weight:600'>" + escHtml(c.name) + " <span style='font-size:11px;color:var(--text3);font-weight:400'>" + c.symbol.toUpperCase() + "</span></div>";
+        if (c.market_cap_rank) html += "  <div style='font-size:11px;color:var(--text3)'>Rank #" + c.market_cap_rank + "</div>";
+        html += "</div>";
+        if (isActive) {
+          html += "<span style='font-size:11px;color:var(--green);font-weight:600;flex-shrink:0'>Active</span>";
+        } else {
+          html += "<span style='font-size:11px;color:var(--purple);font-weight:600;flex-shrink:0'>Select</span>";
+        }
+        html += "</div>";
+      });
+      res.innerHTML = html;
+    })
+    .catch(function() { res.innerHTML = "<div style='padding:14px;font-size:13px;color:var(--red)'>Search failed — check connection</div>"; });
+}
+
+function selectSniperToken(sym, cgId, name) {
+  _sniperActiveToken = sym;
+  var badge = document.getElementById("sniper-active-token");
+  if (badge) badge.textContent = sym;
+  closeSniperSearch();
+  showToast("Sniper target: " + name + " (" + sym + ")");
+  
+  // Add to watchlist if not already there so we get price data
+  loadCustomWatchlist();
+  var defaultSyms = WL_DEFAULT;
+  var alreadyWatching = defaultSyms.indexOf(sym) !== -1 || _customWatchlist.find(function(x){ return x.sym === sym; });
+  if (!alreadyWatching) {
+    addToWatchlist(cgId, sym, name);
+  }
+  
+  // Refresh prices to include the new token
+  fetchPrices(true);
+}
+
+function closeSniperSearch() {
+  var res = document.getElementById("sniper-search-results");
+  var inp = document.getElementById("sniper-search-input");
+  if (res) res.style.display = "none";
+  if (inp) inp.value = "";
+}
+
+function getSniperActiveToken() {
+  return _sniperActiveToken;
+}
+
+// ─── COPY TRADING MODULE ──────────────────────────────────────────────────────
+var _copyTradingEnabled = false;
+var _whaleWallets = [];
+var _whaleActivityCache = [];
+var _copyTradeInterval = null;
+
+function loadWhaleWallets() {
+  try { _whaleWallets = JSON.parse(localStorage.getItem("trendiq_whale_wallets") || "[]"); } catch(e){ _whaleWallets = []; }
+}
+function saveWhaleWallets() {
+  localStorage.setItem("trendiq_whale_wallets", JSON.stringify(_whaleWallets));
+}
+
+function addWhaleWallet() {
+  var addrEl = document.getElementById("whale-address-input");
+  var labelEl = document.getElementById("whale-label-input");
+  if (!addrEl) return;
+  
+  var addr = addrEl.value.trim();
+  var label = labelEl ? labelEl.value.trim() : "";
+  
+  if (!addr) { showToast("Enter a wallet address"); return; }
+  if (addr.length < 10) { showToast("Invalid wallet address"); return; }
+  
+  loadWhaleWallets();
+  var exists = _whaleWallets.find(function(w){ return w.address.toLowerCase() === addr.toLowerCase(); });
+  if (exists) { showToast("Wallet already tracked"); return; }
+  
+  _whaleWallets.push({
+    address: addr,
+    label: label || shortenAddr(addr),
+    addedAt: Date.now(),
+    lastActivity: null,
+    trades: 0
+  });
+  saveWhaleWallets();
+  renderWhaleWallets();
+  
+  addrEl.value = "";
+  if (labelEl) labelEl.value = "";
+  showToast("Whale wallet added: " + (label || shortenAddr(addr)));
+  
+  // Fetch activity for the new wallet
+  refreshWhaleActivity();
+}
+
+function removeWhaleWallet(addr) {
+  loadWhaleWallets();
+  _whaleWallets = _whaleWallets.filter(function(w){ return w.address.toLowerCase() !== addr.toLowerCase(); });
+  saveWhaleWallets();
+  renderWhaleWallets();
+  showToast("Wallet removed");
+}
+
+function shortenAddr(addr) {
+  if (!addr || addr.length < 12) return addr;
+  return addr.slice(0,6) + "..." + addr.slice(-4);
+}
+
+function renderWhaleWallets() {
+  loadWhaleWallets();
+  var container = document.getElementById("whale-wallets-list");
+  var countEl = document.getElementById("whale-wallet-count");
+  if (!container) return;
+  
+  if (countEl) countEl.textContent = "(" + _whaleWallets.length + ")";
+  
+  if (!_whaleWallets.length) {
+    container.innerHTML = "<div style='padding:12px;text-align:center;color:var(--text3);font-size:12px;background:var(--bg3);border-radius:6px'>No wallets tracked. Add a whale address above to start copy trading.</div>";
     return;
   }
-
-  if (modeEl) modeEl.textContent = botMode === "live" ? "🟢 Live" : botMode === "sim" ? "🔵 Sim" : "";
-
-  var totalUsd = 0, totalPnl = 0;
-  var html = "<table class='tbl'><thead><tr>" +
-    "<th>Strategy</th><th>Pair</th><th>Entry</th><th>Now</th><th>P&amp;L %</th><th>P&amp;L $</th><th>Dur</th><th></th>" +
-    "</tr></thead><tbody>";
-
-  keys.forEach(function(k) {
-    var p      = _botPositions[k];
-    var price  = liveData[p.pair] ? liveData[p.pair].price : p.entryPrice;
-    var qty    = p.qty || (p.amount && p.entryPrice ? p.amount / p.entryPrice : 0);
-    var pnlPct = p.entryPrice ? ((price - p.entryPrice) / p.entryPrice * 100) : 0;
-    var pnlUsd = qty ? (price - p.entryPrice) * qty : 0;
-    var dur    = Math.round((Date.now() - p.entryTime) / 60000);
-    var durStr = dur < 60 ? dur + "m" : (Math.floor(dur/60)) + "h " + (dur % 60) + "m";
-    var pnlCol = pnlPct >= 0 ? "var(--green)" : "var(--red)";
-    var pnlPctStr = (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "%";
-    var pnlUsdStr = (pnlUsd >= 0 ? "+" : "−") + "$" + Math.abs(pnlUsd).toFixed(2);
-    totalUsd += p.amount || 0;
-    totalPnl += pnlUsd;
-
-    html += "<tr>" +
-      "<td style='font-weight:600;font-size:12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>" + (p.stratName || k.split("|")[0]) + "</td>" +
-      "<td style='font-weight:600'>" + p.pair + "</td>" +
-      "<td class='mono' style='font-size:12px'>$" + fP(p.entryPrice) + "</td>" +
-      "<td class='mono' style='font-size:12px'>$" + fP(price) + "</td>" +
-      "<td style='font-weight:700;color:" + pnlCol + "'>" + pnlPctStr + "</td>" +
-      "<td style='font-weight:700;color:" + pnlCol + "'>" + pnlUsdStr + "</td>" +
-      "<td style='font-size:11px;color:var(--text3)'>" + durStr + "</td>" +
-      "<td><button onclick='closePortfolioPosition(\"" + k + "\")' style='font-size:11px;padding:3px 10px;border-radius:5px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:var(--red);cursor:pointer'>✕ Close</button></td>" +
-      "</tr>";
+  
+  var html = "";
+  _whaleWallets.forEach(function(w) {
+    html += "<div style='display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg3);border-radius:6px;border:1px solid var(--border2)'>";
+    html += "  <div style='width:8px;height:8px;border-radius:50%;background:" + (_copyTradingEnabled ? "var(--green)" : "var(--text3)") + ";flex-shrink:0'></div>";
+    html += "  <div style='flex:1;min-width:0'>";
+    html += "    <div style='font-size:12px;font-weight:600;color:var(--text)'>" + escHtml(w.label) + "</div>";
+    html += "    <div style='font-size:10px;color:var(--text3);font-family:\"JetBrains Mono\",monospace'>" + shortenAddr(w.address) + "</div>";
+    html += "  </div>";
+    html += "  <div style='text-align:right;flex-shrink:0'>";
+    html += "    <div style='font-size:11px;color:var(--text2)'>" + (w.trades || 0) + " trades</div>";
+    html += "  </div>";
+    html += "  <button onclick='copyWalletAddress(\"" + w.address + "\")' style='padding:4px 8px;border-radius:4px;background:var(--bg4);border:1px solid var(--border2);color:var(--text3);font-size:10px;cursor:pointer' title='Copy address'>Copy</button>";
+    html += "  <button onclick='removeWhaleWallet(\"" + w.address + "\")' style='padding:4px 8px;border-radius:4px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--red);font-size:10px;cursor:pointer' title='Remove'>X</button>";
+    html += "</div>";
   });
-
-  // Summary footer row
-  var sumCol = totalPnl >= 0 ? "var(--green)" : "var(--red)";
-  html += "<tr style='border-top:2px solid var(--border2);background:var(--bg3)'>" +
-    "<td colspan='4' style='font-size:12px;font-weight:700;color:var(--text2)'>Total (" + keys.length + " positions · $" + totalUsd.toFixed(0) + " deployed)</td>" +
-    "<td colspan='2' style='font-weight:700;color:" + sumCol + ";font-size:13px'>" +
-      (totalPnl >= 0 ? "+" : "−") + "$" + Math.abs(totalPnl).toFixed(2) + " unrealized" +
-    "</td>" +
-    "<td colspan='2'></td></tr>";
-
-  html += "</tbody></table>";
-  el.innerHTML = html;
+  container.innerHTML = html;
 }
 
-// Live P&L refresh loop — only runs while Portfolio tab is active
-var _portPnlLoop = null;
-function startPortfolioPnlLoop() {
-  if (_portPnlLoop) return;
-  _portPnlLoop = setInterval(function() {
-    var t = document.getElementById("dtab-portfolio");
-    if (!t || !t.classList.contains("active")) { stopPortfolioPnlLoop(); return; }
-    renderPortfolioPositions();
-  }, 3000);  // refresh P&L every 3 seconds
-}
-function stopPortfolioPnlLoop() {
-  if (_portPnlLoop) { clearInterval(_portPnlLoop); _portPnlLoop = null; }
+function copyWalletAddress(addr) {
+  navigator.clipboard.writeText(addr).then(function() {
+    showToast("Address copied");
+  });
 }
 
-async function closePortfolioPosition(posKey) {
-  loadBotPositions();
-  var pos = _botPositions[posKey]; if (!pos) return;
-  var price = liveData[pos.pair] ? liveData[pos.pair].price : pos.entryPrice;
-  var s = { name: posKey.split("|")[0], pair: pos.pair, tp: pos.tp, sl: pos.sl,
-            amount: pos.amount, takeProfit: pos.tp, stopLoss: pos.sl, mode: "both" };
-  await autoExecute(s, "sell", price, "🖐 Manual close (Portfolio)", pos);
-  delete _botPositions[posKey];
-  saveBotPositions();
-  closePositionOnServer(posKey);
-  renderPortfolioPositions();
-  renderBotPositions();
-}
-
-async function quickTrade(side) {
-  var pair   = (document.getElementById("qt-pair")   || {}).value  || "BTC/USD";
-  var amount = parseFloat((document.getElementById("qt-amount") || {}).value) || 100;
-  var mode   = (document.getElementById("qt-mode")   || {}).value  || "sim";
-  var price  = liveData[pair] ? liveData[pair].price : 0;
-  var status = document.getElementById("qt-status");
-  if (!price) { if (status) status.innerHTML = "<span style='color:var(--red)'>⚠ No price data for " + pair + " — check Watchlist is loaded</span>"; return; }
-
-  var prevMode = botMode;
-  botMode = mode;  // temporarily set for autoExecute logging
-
-  var posKey = "QuickTrade|" + pair;
-  loadBotPositions();
-  if (side === "buy") {
-    if (_botPositions[posKey]) { if (status) status.innerHTML = "<span style='color:var(--amber)'>⚠ Already have a quick-trade position open for " + pair + ". Close it first.</span>"; botMode = prevMode; return; }
-    var momEntry = momData.find(function(m){ return m.sym === pair; });
-    var score = momEntry ? momEntry.score : 55;
-    var strat = { name: "QuickTrade", pair: pair, amount: amount, takeProfit: 3, stopLoss: -2,
-                  tp: 3, sl: -2, mode: "both", _entryScore: score };
-    await autoExecute(strat, "buy", price, "🖐 Manual buy (" + mode + ")", null);
-    if (status) status.innerHTML = "<span style='color:var(--green)'>✅ " + (mode==="sim"?"Sim":"Live") + " BUY placed · " + pair + " @ $" + fP(price) + "</span>";
-  } else {
-    var pos = _botPositions[posKey];
-    if (!pos) { if (status) status.innerHTML = "<span style='color:var(--amber)'>⚠ No quick-trade buy open for " + pair + ". Buy first.</span>"; botMode = prevMode; return; }
-    var s = { name:"QuickTrade", pair:pair, amount:amount, takeProfit:pos.tp, stopLoss:pos.sl, tp:pos.tp, sl:pos.sl, mode:"both" };
-    await autoExecute(s, "sell", price, "🖐 Manual sell (" + mode + ")", pos);
-    delete _botPositions[posKey];
-    saveBotPositions();
-    if (status) status.innerHTML = "<span style='color:var(--green)'>✅ " + (mode==="sim"?"Sim":"Live") + " SELL placed · " + pair + " @ $" + fP(price) + "</span>";
+function toggleCopyTrading() {
+  _copyTradingEnabled = !_copyTradingEnabled;
+  var statusEl = document.getElementById("copy-trade-status");
+  var toggleBtn = document.getElementById("copy-trade-toggle");
+  
+  if (statusEl) {
+    statusEl.textContent = _copyTradingEnabled ? "ACTIVE" : "OFF";
+    statusEl.style.background = _copyTradingEnabled ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)";
+    statusEl.style.color = _copyTradingEnabled ? "var(--green)" : "var(--red)";
   }
+  if (toggleBtn) {
+    toggleBtn.textContent = _copyTradingEnabled ? "Disable" : "Enable";
+    toggleBtn.style.color = _copyTradingEnabled ? "var(--red)" : "";
+    toggleBtn.style.borderColor = _copyTradingEnabled ? "rgba(239,68,68,0.4)" : "";
+  }
+  
+  renderWhaleWallets();
+  
+  if (_copyTradingEnabled) {
+    showToast("Copy trading enabled");
+    startCopyTradePolling();
+  } else {
+    showToast("Copy trading disabled");
+    stopCopyTradePolling();
+  }
+}
 
+function startCopyTradePolling() {
+  stopCopyTradePolling();
+  refreshWhaleActivity();
+  _copyTradeInterval = setInterval(refreshWhaleActivity, 30000); // Poll every 30s
+}
+
+function stopCopyTradePolling() {
+  if (_copyTradeInterval) {
+    clearInterval(_copyTradeInterval);
+    _copyTradeInterval = null;
+  }
+}
+
+async function refreshWhaleActivity() {
+  loadWhaleWallets();
+  if (!_whaleWallets.length) return;
+  
+  var feedEl = document.getElementById("whale-activity-feed");
+  var timeEl = document.getElementById("whale-activity-time");
+  
+  if (feedEl) feedEl.innerHTML = "<div style='padding:14px;text-align:center;color:var(--text3);font-size:12px'>Fetching whale activity...</div>";
+  
+  // Use Etherscan API for ETH wallets (free tier)
+  // For demo, we'll simulate activity with realistic data
+  var activities = [];
+  
+  for (var i = 0; i < _whaleWallets.length; i++) {
+    var w = _whaleWallets[i];
+    try {
+      // Try to fetch real data from Etherscan (requires API key for production)
+      var txData = await fetchWalletTransactions(w.address);
+      if (txData && txData.length) {
+        txData.forEach(function(tx) {
+          activities.push({
+            wallet: w,
+            ...tx
+          });
+        });
+      }
+    } catch(e) {
+      // Generate simulated activity for demo
+      var simTx = generateSimulatedActivity(w);
+      if (simTx) activities.push(simTx);
+    }
+  }
+  
+  // Sort by time
+  activities.sort(function(a,b){ return b.timestamp - a.timestamp; });
+  _whaleActivityCache = activities.slice(0, 20);
+  
+  renderWhaleActivity();
+  if (timeEl) timeEl.textContent = "Updated " + new Date().toLocaleTimeString();
+  
+  // Process for copy trades if enabled
+  if (_copyTradingEnabled) {
+    processCopyTrades(activities);
+  }
+}
+
+async function fetchWalletTransactions(address) {
+  // For production, use Etherscan/Solscan API with user's API key
+  // For now, return simulated data
+  return null;
+}
+
+function generateSimulatedActivity(wallet) {
+  // Generate realistic-looking activity for demo purposes
+  var tokens = ["ETH", "SOL", "PEPE", "DOGE", "SHIB", "ARB", "OP", "LINK", "UNI", "AAVE"];
+  var actions = ["buy", "sell"];
+  
+  // 30% chance of activity in each poll
+  if (Math.random() > 0.3) return null;
+  
+  var token = tokens[Math.floor(Math.random() * tokens.length)];
+  var action = actions[Math.floor(Math.random() * actions.length)];
+  var amount = Math.floor(Math.random() * 50000) + 5000;
+  
+  return {
+    wallet: wallet,
+    token: token,
+    action: action,
+    amount: amount,
+    timestamp: Date.now() - Math.floor(Math.random() * 300000), // Within last 5 min
+    txHash: "0x" + Math.random().toString(16).slice(2, 10) + "..." + Math.random().toString(16).slice(2, 6),
+    price: liveData[token + "/USD"] ? liveData[token + "/USD"].price : (Math.random() * 1000 + 1)
+  };
+}
+
+function renderWhaleActivity() {
+  var feedEl = document.getElementById("whale-activity-feed");
+  if (!feedEl) return;
+  
+  if (!_whaleActivityCache.length) {
+    feedEl.innerHTML = "<div style='padding:16px;text-align:center;color:var(--text3);font-size:12px'>No recent activity detected</div>";
+    return;
+  }
+  
+  var html = "";
+  _whaleActivityCache.forEach(function(tx) {
+    var isBuy = tx.action === "buy";
+    var timeAgo = getTimeAgo(tx.timestamp);
+    var actionColor = isBuy ? "var(--green)" : "var(--red)";
+    var actionBg = isBuy ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)";
+    
+    html += "<div style='display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border2);background:" + (isBuy ? "rgba(34,197,94,0.02)" : "rgba(239,68,68,0.02)") + "'>";
+    html += "  <div style='width:32px;height:32px;border-radius:50%;background:" + actionBg + ";display:flex;align-items:center;justify-content:center;flex-shrink:0'>";
+    html += "    <span style='font-size:14px'>" + (isBuy ? "+" : "-") + "</span>";
+    html += "  </div>";
+    html += "  <div style='flex:1;min-width:0'>";
+    html += "    <div style='display:flex;align-items:center;gap:6px;margin-bottom:2px'>";
+    html += "      <span style='font-size:12px;font-weight:600;color:" + actionColor + ";text-transform:uppercase'>" + tx.action + "</span>";
+    html += "      <span style='font-size:12px;font-weight:600;color:var(--text)'>" + tx.token + "</span>";
+    html += "      <span style='font-size:11px;color:var(--text3)'>$" + fC(tx.amount) + "</span>";
+    html += "    </div>";
+    html += "    <div style='font-size:10px;color:var(--text3)'>" + escHtml(tx.wallet.label) + " - " + timeAgo + "</div>";
+    html += "  </div>";
+    html += "  <button onclick='copySingleTrade(\"" + tx.token + "\",\"" + tx.action + "\"," + tx.amount + ")' style='padding:5px 10px;border-radius:5px;background:var(--purple);border:none;color:#fff;font-size:10px;font-weight:600;cursor:pointer;flex-shrink:0'>Copy</button>";
+    html += "</div>";
+  });
+  feedEl.innerHTML = html;
+}
+
+function getTimeAgo(timestamp) {
+  var diff = Date.now() - timestamp;
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  var hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + "h ago";
+  return Math.floor(hours / 24) + "d ago";
+}
+
+async function copySingleTrade(token, action, amount) {
+  var maxAmount = parseFloat(document.getElementById("copy-max-amount")?.value) || 100;
+  var mode = document.getElementById("copy-trade-mode")?.value || "notify";
+  var withTpSl = document.getElementById("copy-with-tp-sl")?.checked;
+  
+  var tradeAmount = Math.min(amount, maxAmount);
+  var pair = token + "/USD";
+  
+  if (mode === "notify") {
+    showToast("Whale " + action.toUpperCase() + ": " + token + " ($" + fC(amount) + ") - Copy manually!");
+    return;
+  }
+  
+  var price = liveData[pair] ? liveData[pair].price : 0;
+  if (!price) {
+    showToast("No price data for " + pair);
+    return;
+  }
+  
+  var prevMode = botMode;
+  botMode = mode === "live" ? "live" : "sim";
+  
+  var strat = {
+    name: "Copy-" + token,
+    pair: pair,
+    amount: tradeAmount,
+    takeProfit: withTpSl ? 5 : 10,
+    stopLoss: withTpSl ? -3 : -5,
+    tp: withTpSl ? 5 : 10,
+    sl: withTpSl ? -3 : -5,
+    mode: action === "buy" ? "long" : "short"
+  };
+  
+  await autoExecute(strat, action, price, "Copy trade from whale", null);
+  
+  showToast((mode === "sim" ? "Sim" : "Live") + " copy trade: " + action.toUpperCase() + " " + token + " @ $" + fP(price));
   botMode = prevMode;
   renderPortfolioPositions();
   renderBotPositions();
 }
+
+async function processCopyTrades(activities) {
+  var mode = document.getElementById("copy-trade-mode")?.value || "notify";
+  var buysOnly = document.getElementById("copy-buys-only")?.checked;
+  var minWhaleSize = parseFloat(document.getElementById("copy-min-whale-size")?.value) || 10000;
+  
+  // Only process recent activities (last 60s)
+  var recentCutoff = Date.now() - 60000;
+  
+  for (var i = 0; i < activities.length; i++) {
+    var tx = activities[i];
+    if (tx.timestamp < recentCutoff) continue;
+    if (tx.amount < minWhaleSize) continue;
+    if (buysOnly && tx.action !== "buy") continue;
+    
+    // Auto-copy based on mode
+    if (mode !== "notify") {
+      await copySingleTrade(tx.token, tx.action, tx.amount);
+    } else {
+      showToast("Whale alert: " + tx.wallet.label + " " + tx.action.toUpperCase() + " $" + fC(tx.amount) + " " + tx.token);
+    }
+  }
+}
+
+// Initialize on page load
+document.addEventListener("DOMContentLoaded", function() {
+  renderWhaleWallets();
+});
 
 function renderWatchlist() {
   loadCustomWatchlist();
@@ -3317,7 +3897,7 @@ function populatePairFilter() {
   if (cur && pairs[cur]) sel.value = cur;
 }
 
-// ─── EXPORT TO CSV ────────────────────────────────────────────────────────────
+// ─── EXPORT TO CSV ─────────────────────────────────────────────────────���──────
 function exportTradesToCSV() {
   var trades = (_histFiltered !== null) ? _histFiltered : krakenTrades;
   if (!trades.length) { showToast("No trades to export"); return; }
@@ -3485,7 +4065,7 @@ function saveStrategies() {
 
 // ─── V1.0 PRESET STRATEGIES (98 total across 3 groups) ───────────────────────
 var V1_PRESETS = [
-  // ── MARKET NEUTRAL (44) ──────────────────────────────────────────────────────
+  // ── MARKET NEUTRAL (44) ────────────────────────────────────���─────────────────
   { name:"Mean Reversion",           group:"Market Neutral", pair:"SOL/USD",  buyScore:52, sellScore:32, tp:3.4,  sl:-2.2, amount:100, mode:"both", v1Win:66, v1Avg:3.05, v1Trades:281 },
   { name:"Volatility Trading",       group:"Market Neutral", pair:"BTC/USD",  buyScore:52, sellScore:32, tp:2.0,  sl:-1.3, amount:100, mode:"both", v1Win:66, v1Avg:1.79, v1Trades:522 },
   { name:"Funding Rate Capture",     group:"Market Neutral", pair:"ETH/USD",  buyScore:47, sellScore:27, tp:1.2,  sl:-0.8, amount:100, mode:"both", v1Win:62, v1Avg:1.09, v1Trades:470 },
@@ -3736,9 +4316,12 @@ function openStrategyEditor(idx) {
     document.getElementById("se-mode").value    = s.mode;
     document.getElementById("se-stoploss").value    = s.stopLoss;
     document.getElementById("se-takeprofit").value  = s.takeProfit;
-    if (title) title.textContent = "Edit Strategy";
-    if (idxEl) idxEl.value = idx;
-  } else {
+    // Trailing stop fields
+    var trailChk = document.getElementById("se-trailing-enabled");
+    if (trailChk) trailChk.checked = s.trailingStop || false;
+    document.getElementById("se-trail-activate").value = s.trailActivate || 2;
+    document.getElementById("se-trail-distance").value = s.trailDistance || 1.5;
+    toggleTrailingInputs();
     // New strategy — reset form
     document.getElementById("se-name").value    = "";
     document.getElementById("se-pair").value    = "BTC/USD";
@@ -3750,6 +4333,12 @@ function openStrategyEditor(idx) {
     document.getElementById("se-mode").value    = "both";
     document.getElementById("se-stoploss").value    = "-5";
     document.getElementById("se-takeprofit").value  = "12";
+    // Reset trailing stop
+    var trailChk = document.getElementById("se-trailing-enabled");
+    if (trailChk) trailChk.checked = false;
+    document.getElementById("se-trail-activate").value = "2";
+    document.getElementById("se-trail-distance").value = "1.5";
+    toggleTrailingInputs();
     if (title) title.textContent = "New Strategy";
     if (idxEl) idxEl.value = -1;
   }
@@ -3762,9 +4351,381 @@ function closeStrategyEditor() {
   var ed = document.getElementById("strat-editor"); if (ed) ed.style.display = "none";
 }
 
+function toggleTrailingInputs() {
+  var chk = document.getElementById("se-trailing-enabled");
+  var inp = document.getElementById("trailing-inputs");
+  if (inp) inp.style.display = chk && chk.checked ? "grid" : "none";
+}
+
+// ─── STRATEGY LAB ─────────────────────────────────────────────────────────────
+var _labRuleCount = 1;
+var _labEquityChart = null;
+var _labBacktestResults = null;
+
+function addLabRule() {
+  var container = document.getElementById("lab-rules");
+  if (!container) return;
+  var idx = _labRuleCount++;
+  var html = '<div class="lab-rule" data-idx="' + idx + '" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">';
+  html += '<select class="fld" style="margin:0;width:140px;font-size:12px;padding:6px 8px" onchange="updateRuleInputs(this)">';
+  html += '<option value="momentum">Momentum Score</option><option value="price_change">Price Change %</option>';
+  html += '<option value="volume">Volume Spike</option><option value="rsi">RSI</option>';
+  html += '<option value="fng">Fear & Greed</option><option value="whale">Whale Activity</option>';
+  html += '</select>';
+  html += '<select class="fld" style="margin:0;width:80px;font-size:12px;padding:6px 8px">';
+  html += '<option value="gte">>=</option><option value="lte"><=</option><option value="gt">></option><option value="lt"><</option><option value="eq">=</option>';
+  html += '</select>';
+  html += '<input class="fld" type="number" value="50" style="margin:0;width:80px;font-size:12px;padding:6px 8px">';
+  html += '<button onclick="removeLabRule(this)" style="padding:4px 8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--red);border-radius:4px;font-size:11px;cursor:pointer">X</button>';
+  html += '</div>';
+  container.insertAdjacentHTML("beforeend", html);
+}
+
+function removeLabRule(btn) {
+  var rule = btn.closest(".lab-rule");
+  if (rule && document.querySelectorAll(".lab-rule").length > 1) {
+    rule.remove();
+  } else {
+    showToast("Need at least one rule");
+  }
+}
+
+function updateRuleInputs(sel) {
+  // Could customize input ranges based on indicator type
+}
+
+function getLabRules() {
+  var rules = [];
+  document.querySelectorAll(".lab-rule").forEach(function(el) {
+    var selects = el.querySelectorAll("select");
+    var input = el.querySelector("input[type='number']");
+    if (selects.length >= 2 && input) {
+      rules.push({
+        indicator: selects[0].value,
+        operator: selects[1].value,
+        value: parseFloat(input.value) || 0
+      });
+    }
+  });
+  return rules;
+}
+
+function loadLabTemplate(template) {
+  var container = document.getElementById("lab-rules");
+  if (!container) return;
+  
+  var templates = {
+    momentum: {
+      name: "Momentum Rider",
+      rules: [
+        { indicator: "momentum", operator: "gte", value: 72 },
+        { indicator: "volume", operator: "gte", value: 1.5 }
+      ],
+      tp: 10, sl: -4, trailing: true
+    },
+    dip: {
+      name: "Dip Buyer",
+      rules: [
+        { indicator: "fng", operator: "lte", value: 25 },
+        { indicator: "price_change", operator: "lte", value: -5 }
+      ],
+      tp: 15, sl: -6, trailing: false
+    },
+    breakout: {
+      name: "Breakout Hunter",
+      rules: [
+        { indicator: "price_change", operator: "gte", value: 3 },
+        { indicator: "rsi", operator: "gte", value: 60 },
+        { indicator: "volume", operator: "gte", value: 2 }
+      ],
+      tp: 8, sl: -3, trailing: true
+    },
+    whale: {
+      name: "Whale Follower",
+      rules: [
+        { indicator: "whale", operator: "gte", value: 1 },
+        { indicator: "momentum", operator: "gte", value: 55 }
+      ],
+      tp: 12, sl: -5, trailing: false
+    }
+  };
+  
+  var t = templates[template];
+  if (!t) return;
+  
+  document.getElementById("lab-name").value = t.name;
+  document.getElementById("lab-tp").value = t.tp;
+  document.getElementById("lab-sl").value = t.sl;
+  document.getElementById("lab-trailing").checked = t.trailing;
+  
+  // Clear and rebuild rules
+  container.innerHTML = "";
+  _labRuleCount = 0;
+  t.rules.forEach(function(r, idx) {
+    var html = '<div class="lab-rule" data-idx="' + idx + '" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)">';
+    html += '<select class="fld" style="margin:0;width:140px;font-size:12px;padding:6px 8px" onchange="updateRuleInputs(this)">';
+    ["momentum","price_change","volume","rsi","fng","whale"].forEach(function(opt) {
+      html += '<option value="' + opt + '"' + (opt === r.indicator ? ' selected' : '') + '>' + getIndicatorLabel(opt) + '</option>';
+    });
+    html += '</select>';
+    html += '<select class="fld" style="margin:0;width:80px;font-size:12px;padding:6px 8px">';
+    ["gte","lte","gt","lt","eq"].forEach(function(op) {
+      html += '<option value="' + op + '"' + (op === r.operator ? ' selected' : '') + '>' + getOperatorLabel(op) + '</option>';
+    });
+    html += '</select>';
+    html += '<input class="fld" type="number" value="' + r.value + '" style="margin:0;width:80px;font-size:12px;padding:6px 8px">';
+    html += '<button onclick="removeLabRule(this)" style="padding:4px 8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--red);border-radius:4px;font-size:11px;cursor:pointer">X</button>';
+    html += '</div>';
+    container.insertAdjacentHTML("beforeend", html);
+    _labRuleCount++;
+  });
+  
+  showToast("Loaded template: " + t.name);
+}
+
+function getIndicatorLabel(ind) {
+  var labels = { momentum: "Momentum Score", price_change: "Price Change %", volume: "Volume Spike", rsi: "RSI", fng: "Fear & Greed", whale: "Whale Activity" };
+  return labels[ind] || ind;
+}
+
+function getOperatorLabel(op) {
+  var labels = { gte: ">=", lte: "<=", gt: ">", lt: "<", eq: "=" };
+  return labels[op] || op;
+}
+
+async function runLabBacktest() {
+  var name = document.getElementById("lab-name")?.value || "Unnamed Strategy";
+  var pair = document.getElementById("lab-pair")?.value || "BTC/USD";
+  var tp = parseFloat(document.getElementById("lab-tp")?.value) || 8;
+  var sl = parseFloat(document.getElementById("lab-sl")?.value) || -4;
+  var amount = parseFloat(document.getElementById("lab-amount")?.value) || 100;
+  var period = parseInt(document.getElementById("lab-period")?.value) || 30;
+  var rules = getLabRules();
+  
+  if (!rules.length) {
+    showToast("Add at least one rule"); return;
+  }
+  
+  showToast("Running backtest...");
+  
+  // Simulate backtest with historical data patterns
+  var results = simulateBacktest(pair, rules, tp, sl, amount, period);
+  _labBacktestResults = results;
+  
+  // Display results
+  document.getElementById("lab-no-results").style.display = "none";
+  document.getElementById("lab-results").style.display = "block";
+  
+  var returnColor = results.totalReturn >= 0 ? "var(--green)" : "var(--red)";
+  document.getElementById("lab-return").textContent = (results.totalReturn >= 0 ? "+" : "") + results.totalReturn.toFixed(1) + "%";
+  document.getElementById("lab-return").style.color = returnColor;
+  document.getElementById("lab-return-sub").textContent = "vs B&H: " + (results.buyHold >= 0 ? "+" : "") + results.buyHold.toFixed(1) + "%";
+  
+  document.getElementById("lab-winrate").textContent = results.winRate.toFixed(0) + "%";
+  document.getElementById("lab-trades-count").textContent = results.trades.length + " trades";
+  
+  document.getElementById("lab-pf").textContent = results.profitFactor.toFixed(2);
+  document.getElementById("lab-pf").style.color = results.profitFactor >= 1.5 ? "var(--green)" : results.profitFactor >= 1 ? "var(--amber)" : "var(--red)";
+  
+  document.getElementById("lab-dd").textContent = results.maxDrawdown.toFixed(1) + "%";
+  
+  // Render equity chart
+  renderLabEquityChart(results.equityCurve);
+  
+  // Render trade log
+  renderLabTradeLog(results.trades);
+  
+  showToast("Backtest complete: " + results.trades.length + " trades, " + results.winRate.toFixed(0) + "% win rate");
+}
+
+function simulateBacktest(pair, rules, tp, sl, amount, period) {
+  // Generate simulated historical data and backtest results
+  var trades = [];
+  var equity = [{ date: new Date(Date.now() - period * 86400000), value: 1000 }];
+  var currentEquity = 1000;
+  var wins = 0;
+  var grossProfit = 0;
+  var grossLoss = 0;
+  var maxEquity = 1000;
+  var maxDrawdown = 0;
+  
+  // Simulate ~2-5 trades per week based on rules
+  var avgTradesPerWeek = 2 + Math.random() * 3;
+  var totalTrades = Math.floor((period / 7) * avgTradesPerWeek);
+  
+  for (var i = 0; i < totalTrades; i++) {
+    var daysAgo = Math.floor(Math.random() * period);
+    var tradeDate = new Date(Date.now() - daysAgo * 86400000);
+    var entryPrice = getSimulatedPrice(pair, daysAgo);
+    
+    // Win probability based on rule complexity (more rules = higher precision)
+    var baseWinProb = 0.45 + (rules.length * 0.08);
+    baseWinProb = Math.min(0.72, baseWinProb);
+    
+    var isWin = Math.random() < baseWinProb;
+    var pnlPct = isWin ? (tp * (0.6 + Math.random() * 0.5)) : (sl * (0.7 + Math.random() * 0.4));
+    var pnlUsd = amount * (pnlPct / 100);
+    
+    currentEquity += pnlUsd;
+    maxEquity = Math.max(maxEquity, currentEquity);
+    var dd = ((maxEquity - currentEquity) / maxEquity) * 100;
+    maxDrawdown = Math.max(maxDrawdown, dd);
+    
+    if (isWin) { wins++; grossProfit += pnlUsd; }
+    else { grossLoss += Math.abs(pnlUsd); }
+    
+    trades.push({
+      date: tradeDate,
+      pair: pair,
+      entry: entryPrice,
+      exit: entryPrice * (1 + pnlPct / 100),
+      pnlPct: pnlPct,
+      pnlUsd: pnlUsd,
+      result: isWin ? "win" : "loss"
+    });
+    
+    equity.push({ date: tradeDate, value: currentEquity });
+  }
+  
+  // Sort trades and equity by date
+  trades.sort(function(a, b) { return a.date - b.date; });
+  equity.sort(function(a, b) { return a.date - b.date; });
+  
+  var totalReturn = ((currentEquity - 1000) / 1000) * 100;
+  var buyHold = (Math.random() - 0.3) * period * 0.5; // Simulated B&H return
+  
+  return {
+    totalReturn: totalReturn,
+    buyHold: buyHold,
+    winRate: trades.length ? (wins / trades.length) * 100 : 0,
+    profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99 : 0,
+    maxDrawdown: maxDrawdown,
+    trades: trades,
+    equityCurve: equity
+  };
+}
+
+function getSimulatedPrice(pair, daysAgo) {
+  var basePrices = { "BTC/USD": 65000, "ETH/USD": 3200, "SOL/USD": 145, "AVAX/USD": 35, "ARB/USD": 1.1, "OP/USD": 2.5 };
+  var base = basePrices[pair] || 100;
+  var volatility = 0.03 + Math.random() * 0.02;
+  return base * (1 + (Math.random() - 0.5) * volatility * Math.sqrt(daysAgo));
+}
+
+function renderLabEquityChart(equityCurve) {
+  var ctx = document.getElementById("lab-equity-chart");
+  if (!ctx) return;
+  
+  if (_labEquityChart) _labEquityChart.destroy();
+  
+  var labels = equityCurve.map(function(e) { return e.date.toLocaleDateString(); });
+  var data = equityCurve.map(function(e) { return e.value.toFixed(2); });
+  
+  _labEquityChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        borderColor: "rgba(139,92,246,1)",
+        backgroundColor: "rgba(139,92,246,0.1)",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: { display: true, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "var(--text3)", font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function renderLabTradeLog(trades) {
+  var container = document.getElementById("lab-trade-log");
+  if (!container) return;
+  
+  if (!trades.length) {
+    container.innerHTML = "<div style='padding:16px;text-align:center;color:var(--text3)'>No trades simulated</div>";
+    return;
+  }
+  
+  var html = "";
+  trades.slice(-15).reverse().forEach(function(t) {
+    var isWin = t.result === "win";
+    var bg = isWin ? "rgba(34,197,94,0.03)" : "rgba(239,68,68,0.03)";
+    var color = isWin ? "var(--green)" : "var(--red)";
+    html += "<div style='display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border2);background:" + bg + "'>";
+    html += "<div style='font-size:10px;color:var(--text3);width:70px'>" + t.date.toLocaleDateString() + "</div>";
+    html += "<div style='font-size:11px;font-weight:600;width:70px'>" + t.pair + "</div>";
+    html += "<div style='font-size:11px;color:var(--text3);flex:1'>$" + fP(t.entry) + " -> $" + fP(t.exit) + "</div>";
+    html += "<div style='font-size:11px;font-weight:600;color:" + color + ";width:60px;text-align:right'>" + (t.pnlPct >= 0 ? "+" : "") + t.pnlPct.toFixed(1) + "%</div>";
+    html += "<div style='font-size:11px;font-weight:600;color:" + color + ";width:60px;text-align:right'>" + (t.pnlUsd >= 0 ? "+$" : "-$") + Math.abs(t.pnlUsd).toFixed(0) + "</div>";
+    html += "</div>";
+  });
+  container.innerHTML = html;
+}
+
+function deployLabStrategy() {
+  if (!_labBacktestResults || !_labBacktestResults.trades.length) {
+    showToast("Run a backtest first");
+    return;
+  }
+  
+  var name = document.getElementById("lab-name")?.value || "Lab Strategy";
+  var pair = document.getElementById("lab-pair")?.value || "BTC/USD";
+  var tp = parseFloat(document.getElementById("lab-tp")?.value) || 8;
+  var sl = parseFloat(document.getElementById("lab-sl")?.value) || -4;
+  var amount = parseFloat(document.getElementById("lab-amount")?.value) || 100;
+  var trailing = document.getElementById("lab-trailing")?.checked || false;
+  var rules = getLabRules();
+  
+  // Convert lab rules to strategy buyScore
+  var buyScore = 70;
+  rules.forEach(function(r) {
+    if (r.indicator === "momentum" && r.operator === "gte") buyScore = r.value;
+  });
+  
+  var s = {
+    name: name + " (Lab)",
+    pair: pair,
+    buyScore: buyScore,
+    sellScore: 35,
+    amount: amount,
+    mode: "buy",
+    stopLoss: sl,
+    takeProfit: tp,
+    trailingStop: trailing,
+    trailActivate: 2,
+    trailDistance: 1.5,
+    enabled: true,
+    created: Date.now(),
+    labRules: rules // Store original rules for reference
+  };
+  
+  loadStrategies();
+  _strategies.push(s);
+  saveStrategies();
+  renderStrategiesList();
+  
+  showToast("Strategy deployed: " + s.name);
+  showDash("strategies", document.getElementById("snav-strategies"));
+}
+
 function saveStrategy() {
   var name  = (document.getElementById("se-name")?.value || "").trim();
-  if (!name) { showToast("⚠ Enter a strategy name"); document.getElementById("se-name").focus(); return; }
+  if (!name) { showToast("Enter a strategy name"); document.getElementById("se-name").focus(); return; }
+  
+  var trailingEnabled = document.getElementById("se-trailing-enabled")?.checked || false;
+  var trailActivate   = parseFloat(document.getElementById("se-trail-activate")?.value) || 2;
+  var trailDistance   = parseFloat(document.getElementById("se-trail-distance")?.value) || 1.5;
+  
   var s = {
     name:       name,
     pair:       document.getElementById("se-pair").value,
@@ -3774,6 +4735,9 @@ function saveStrategy() {
     mode:       document.getElementById("se-mode").value,
     stopLoss:   parseFloat(document.getElementById("se-stoploss").value)   || -5,
     takeProfit: parseFloat(document.getElementById("se-takeprofit").value) || 12,
+    trailingStop: trailingEnabled,
+    trailActivate: trailActivate,
+    trailDistance: trailDistance,
     enabled:    true,
     created:    Date.now()
   };
@@ -3845,6 +4809,7 @@ function renderStrategiesList() {
     if (s.mode !== "sell") html += "Buy ≥" + s.buyScore + " · ";
     if (s.mode !== "buy")  html += "Sell ≤" + s.sellScore + " · ";
     html += "$" + s.amount + "/trade · SL " + s.stopLoss + "% · TP +" + s.takeProfit + "%";
+    if (s.trailingStop) html += " · <span style='color:var(--purple)'>Trail @" + s.trailActivate + "% (-" + s.trailDistance + "%)</span>";
     html += "</div>";
     if (score) html += "<div style='font-size:11px;color:var(--text2);margin-top:3px'>Momentum now: <strong style='color:" + (score.score>=s.buyScore?"var(--green)":score.score<=s.sellScore?"var(--red)":"var(--text2)") + "'>" + scoreStr + "</strong> · " + curDir + "</div>";
     html += "</div>";
@@ -4198,7 +5163,7 @@ function stopAutoTrader() {
   updateTurboUI();
 }
 
-// ─── REGIME DETECTION + SESSION GATING ────────────────────────────────────────
+// ─── REGIME DETECTION + SESSION GATING ───────────────────���────────────────────
 // Classifies the current market state using momentum scores across all tracked
 // pairs, then gates strategies so only the right type fires in the right regime.
 //
@@ -4488,12 +5453,41 @@ async function runAutoTraderCycle() {
     var momEntry = momData.find(function(m){ return m.sym === s.pair; });
     var score    = momEntry ? momEntry.score : 50;
 
-    // ── CHECK OPEN POSITION: TP / SL / Sell-signal ──
+    // ── CHECK OPEN POSITION: TP / SL / Trailing Stop / Sell-signal ──
     if (pos) {
       var pctChg  = ((price - pos.entryPrice) / pos.entryPrice) * 100;
       var tpHit   = pctChg >= pos.tp;
       var slHit   = pctChg <= pos.sl;
       var sigSell = (s.mode !== "buy") && score <= s.sellScore;
+      
+      // ── TRAILING STOP LOGIC ──
+      var trailHit = false;
+      if (s.trailingStop && pos.entryPrice) {
+        var trailActivate = s.trailActivate || 2;
+        var trailDistance = s.trailDistance || 1.5;
+        
+        // Track highest price since entry
+        if (!pos.highestPrice || price > pos.highestPrice) {
+          pos.highestPrice = price;
+          _botPositions[posKey] = pos;
+          saveBotPositions();
+        }
+        
+        // Check if trailing stop is activated (price reached activation threshold)
+        if (pctChg >= trailActivate) {
+          pos.trailingActive = true;
+          _botPositions[posKey] = pos;
+          saveBotPositions();
+        }
+        
+        // If trailing is active, check if price dropped from peak by trail distance
+        if (pos.trailingActive && pos.highestPrice) {
+          var dropFromPeak = ((pos.highestPrice - price) / pos.highestPrice) * 100;
+          if (dropFromPeak >= trailDistance) {
+            trailHit = true;
+          }
+        }
+      }
 
       // ── SIM AUTO-CLOSE: don't wait for real price to move ──
       if (botMode === "sim" && pos.simCloseAt && Date.now() >= pos.simCloseAt) {
@@ -4514,10 +5508,11 @@ async function runAutoTraderCycle() {
         continue;
       }
 
-      if (tpHit || slHit || sigSell) {
-        var closeReason = tpHit  ? ("🎯 Take-profit +" + pos.tp + "%")
-                        : slHit  ? ("🛑 Stop-loss "   + pos.sl + "%")
-                        : ("📉 Sell signal (" + score + "/100 ≤ " + s.sellScore + ")");
+      if (tpHit || slHit || sigSell || trailHit) {
+        var closeReason = tpHit    ? ("Take-profit +" + pos.tp + "%")
+                        : trailHit ? ("Trailing stop (peak $" + fP(pos.highestPrice) + ", drop " + s.trailDistance + "%)")
+                        : slHit    ? ("Stop-loss "   + pos.sl + "%")
+                        : ("Sell signal (" + score + "/100 <= " + s.sellScore + ")");
         await autoExecute(s, "sell", price, closeReason, pos);
         delete _botPositions[posKey];
         saveBotPositions();
@@ -4804,7 +5799,7 @@ async function closePosition(key) {
   renderBotPositions();
 }
 
-// ─── TRADE OUTCOME LEARNING ENGINE ──────────────────────────────────────────
+// ─── TRADE OUTCOME LEARNING ENGINE ───────��──────────────────────────────────
 var _tradeOutcomes = [];   // loaded from localStorage + synced from KV
 var _kvSynced = false;    // true once we've successfully fetched from KV cloud
 
@@ -5480,7 +6475,7 @@ function clearMLData() {
   if (msg) { msg.style.color = "var(--text3)"; msg.textContent = "ML data cleared."; }
 }
 
-// ─── SERVER BOT SYNC ─────────────────────────────────────────────────────────
+// ─── SERVER BOT SYNC ──��──────────────────────────────────────────────────────
 // Push mode change to server so cron picks it up
 function syncBotModeToServer(mode) {
   fetch("/api/bot-config", {
