@@ -1,8 +1,8 @@
-// TrendIQ Service Worker v4
+// TrendIQ Service Worker v5
 // Strategy: ALWAYS network-first for HTML (so updates show immediately),
 //           network-first for APIs, cache-first only for icons/manifest
 
-const CACHE_NAME = "trendiq-v4";
+const CACHE_NAME = "trendiq-v5";
 
 // ── Install: skip waiting immediately ────────────────────────────────────────
 self.addEventListener("install", (event) => {
